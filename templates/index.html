@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block titulo %}Inicio - Sur Volley Club{% endblock %}
+
+{% block contenido %}
+
+<header class="navbar navbar-expand-lg navbar-dark" style="background-color: #0a2342;">
+    <div class="container-fluid px-4">
+        <a class="navbar-brand" href="#">
+            <img src="{% static 'img/logo.png' %}" alt="Sur Volley Club" style="height: 60px;">
+        </a>
+
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav mx-auto">
+                <li class="nav-item"><a class="nav-link" href="#">Inicio</a></li>
+                <li class="nav-item"><a class="nav-link" href="#">Campeonatos</a></li>
+                <li class="nav-item"><a class="nav-link" href="#">Patrocinadores</a></li>
+                <li class="nav-item"><a class="nav-link" href="#">Logros</a></li>
+            </ul>
+            
+            <div class="d-flex">
+                <a href="{% url 'login' %}" class="btn btn-primary d-none d-lg-block">
+                    <img src="{% static 'img/user_icon.png' %}" alt="Usuario" style="width: 25px; border-radius: 50%;"> Iniciar Sesión
+                </a>
+                <a href="{% url 'login' %}" class="d-lg-none text-white text-decoration-none mt-3">Iniciar Sesión</a>
+            </div>
+        </div>
+    </div>
+</header>
+
+
+<section id="heroCarousel" class="carousel slide" data-bs-ride="carousel">
+    <div class="carousel-inner">
+        <div class="carousel-item active">
+            <img src="{% static 'img/equipo.png' %}" class="d-block w-100" alt="Equipo Sur Volley" style="height: 400px; object-fit: cover;">
+        </div>
+        </div>
+    <button class="carousel-control-prev" type="button" data-bs-target="#heroCarousel" data-bs-slide="prev">
+        <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+        <span class="visually-hidden">Previous</span>
+    </button>
+    <button class="carousel-control-next" type="button" data-bs-target="#heroCarousel" data-bs-slide="next">
+        <span class="carousel-control-next-icon" aria-hidden="true"></span>
+        <span class="visually-hidden">Next</span>
+    </button>
+</section>
+
+
+<section class="container py-5 text-center">
+    <h2>Nuestras Categorías</h2>
+    <div class="row mt-4 justify-content-center">
+        <div class="col-md-4 col-lg-3 mb-4">
+            <div class="card shadow-sm category-card">
+                <img src="{% static 'img/sub_14.png' %}" class="card-img-top" alt="Categoría Sub 14">
+                <div class="card-body text-white" style="background-color: #0a2342;">
+                    <h3 class="card-title h5">Categoría Sub 14</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 col-lg-3 mb-4">
+            <div class="card shadow-sm category-card">
+                <img src="{% static 'img/sub_16.png' %}" class="card-img-top" alt="Categoría Sub 16">
+                <div class="card-body text-white" style="background-color: #0a2342;">
+                    <h3 class="card-title h5">Categoría Sub 16</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 col-lg-3 mb-4">
+            <div class="card shadow-sm category-card">
+                <img src="{% static 'img/sub_18.png' %}" class="card-img-top" alt="Categoría Sub 18">
+                <div class="card-body text-white" style="background-color: #0a2342;">
+                    <h3 class="card-title h5">Categoría Sub 18</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<footer class="text-white pt-5 pb-4" style="background-color: #0a2342;">
+    <div class="container text-center text-md-start">
+        <div class="row align-items-center">
+            <div class="col-md-3 mx-auto mb-4">
+                <img src="{% static 'img/logo.png' %}" alt="Sur Volley Club" style="height: 80px;">
+            </div>
+            <div class="col-md-3 mx-auto mb-4 text-center">
+                <h5 class="text-uppercase fw-bold">Síguenos</h5>
+                <a href="#" class="text-white me-3"><img src="{% static 'img/facebook.png' %}" alt="Facebook" style="width: 30px;"></a>
+                <a href="#" class="text-white me-3"><img src="{% static 'img/tiktok.png' %}" alt="TikTok" style="width: 30px;"></a>
+                <a href="#" class="text-white"><img src="{% static 'img/instagram.png' %}" alt="Instagram" style="width: 30px;"></a>
+            </div>
+            <div class="col-md-4 mx-auto mb-4 text-md-end">
+                <h5 class="text-uppercase fw-bold">SUR VOLLEY</h5>
+                <p class="mb-1">Teléfono: 123 443 670</p>
+                <p class="mb-0">Río Bueno, Chile</p>
+            </div>
+        </div>
+    </div>
+</footer>
+
+<style>
+.category-card {
+    transition: transform 0.3s ease;
+}
+.category-card:hover {
+    transform: translateY(-10px);
+}
+</style>
+{% endblock %}

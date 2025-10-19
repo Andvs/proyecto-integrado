@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block titulo %}Editar Jugador{% endblock %}
+{% block contenido %}
+
+<div class="container mt-4">
+    <h2 class="mb-4 text-center">Editar Jugador</h2>
+
+    <!-- 🔔 Mensajes de confirmación o error -->
+    {% if messages %}
+    <div class="mb-3">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- 🧾 Formulario de edición -->
+    <form method="post" novalidate>
+        {% csrf_token %}
+        {{ form.as_div }}
+
+        <div class="d-flex justify-content-between mt-4">
+        <button type="submit" class="btn btn-primary">
+            Guardar cambios
+        </button>
+        <a href="{% url 'visualizacion_jugadores' %}" class="btn btn-secondary">
+            Volver al listado
+        </a>
+        </div>
+    </form>
+</div>
+
+{% endblock %}

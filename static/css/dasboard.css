@@ -1,0 +1,194 @@
+/* ===== RESET ===== */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: "Segoe UI", Arial, sans-serif;
+}
+
+/* ===== ESTRUCTURA ===== */
+body {
+    display: flex;
+    min-height: 100vh;
+    background-color: #f4f6fa;
+    color: #0d1b2a;
+}
+
+/* ===== SIDEBAR ===== */
+.sidebar {
+    width: 250px;
+    background-color: #0a2342;
+    color: white;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 20px 0;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    transition: all 0.3s ease;
+}
+
+.sidebar.show {
+    left: 0;
+}
+
+.sidebar-header {
+    text-align: center;
+    padding: 10px 0 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.sidebar-logo {
+    width: 80px;
+    height: auto;
+    margin-bottom: 10px;
+}
+
+.sidebar h2 {
+    font-size: 1.3em;
+}
+
+/* ===== NAVEGACIÓN ===== */
+.sidebar-nav {
+    flex-grow: 1;
+    padding: 20px 0;
+}
+
+.sidebar-nav ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.sidebar-nav li {
+    margin: 10px 0;
+}
+
+.sidebar-nav a {
+    color: white;
+    text-decoration: none;
+    font-size: 1.05em;
+    padding: 12px 25px;
+    display: block;
+    transition: background-color 0.3s;
+}
+
+.sidebar-nav a:hover {
+    background-color: #00aaff;
+    border-radius: 8px;
+}
+
+/* ===== FOOTER DEL SIDEBAR ===== */
+.sidebar-footer {
+    text-align: center;
+    padding: 15px;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.logout-btn {
+    color: #fff;
+    background-color: #c0392b;
+    padding: 8px 20px;
+    border-radius: 6px;
+    text-decoration: none;
+    display: inline-block;
+    transition: background-color 0.3s;
+}
+
+.logout-btn:hover {
+    background-color: #e74c3c;
+}
+
+/* ===== CONTENIDO PRINCIPAL ===== */
+.main-content {
+    flex-grow: 1;
+    margin-left: 250px;
+    padding: 40px;
+    transition: margin-left 0.3s ease;
+}
+
+.main-header {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 15px;
+    margin-bottom: 30px;
+}
+
+.main-header h1 {
+    font-size: 1.8em;
+    color: #0a2342;
+}
+
+.toggle-btn {
+    display: none;
+    background: #0a2342;
+    color: white;
+    border: none;
+    font-size: 1.5em;
+    border-radius: 6px;
+    width: 40px;
+    height: 40px;
+    cursor: pointer;
+}
+
+/* ===== DASHBOARD HOME ===== */
+.dashboard-home h2 {
+    font-size: 1.6em;
+    color: #0a2342;
+    margin-bottom: 10px;
+}
+
+.dashboard-home p {
+    color: #444;
+    margin-bottom: 30px;
+}
+
+.module-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 25px;
+}
+
+.module-card {
+    background-color: white;
+    border-radius: 10px;
+    text-align: center;
+    padding: 40px 10px;
+    font-size: 1.4em;
+    font-weight: 600;
+    color: #0a2342;
+    text-decoration: none;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s, background-color 0.3s;
+}
+
+.module-card:hover {
+    transform: scale(1.05);
+    background-color: #00aaff;
+    color: white;
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 900px) {
+    .sidebar {
+        position: fixed;
+        left: -260px;
+        z-index: 1000;
+    }
+
+    .sidebar.show {
+        left: 0;
+    }
+
+    .toggle-btn {
+        display: block;
+    }
+
+    .main-content {
+        margin-left: 0;
+        padding: 30px 20px;
+    }
+}
