@@ -7,20 +7,31 @@ from django.contrib.auth.hashers import make_password
 # ====================== USUARIO ======================
 
 class UsuarioForm(forms.ModelForm):
+    """
+    Formulario para crear usuarios nuevos.
+    Incluye validaciones básicas y en el método save()
+    se encripta la contraseña usando el hasher de Django.
+    """
     class Meta:
         model = Usuario
         fields = ['nombre_usuario','contraseña','rol']
+        # Personalización de los widgets de entrada
         widgets = {
-            'nombre_usuario':forms.TextInput(attrs={
+            'nombre_usuario': forms.TextInput(attrs={
                 'placeholder': 'Nombre de Usuarios (solo letras)',
                 'class': 'form-control',
-                'minlength': '3', 'maxlength': '50'}),
-            'contraseña':forms.PasswordInput(attrs={
+                'minlength': '3',
+                'maxlength': '50'
+            }),
+            'contraseña': forms.PasswordInput(attrs={
                 'placeholder': 'Contraseña (8–20, con mayúscula y minúscula)',
                 'class': 'form-control',
-                'minlength': '8', 'maxlength': '20'}),
-            'rol':forms.Select(attrs={'class': 'form-control'})
+                'minlength': '8',
+                'maxlength': '20'
+            }),
+            'rol': forms.Select(attrs={'class': 'form-control'})
         }
+        # Mensajes de error personalizados
         error_messages = {
             'nombre_usuario': {
                 'required': 'El nombre es obligatorio.',
@@ -33,8 +44,16 @@ class UsuarioForm(forms.ModelForm):
             },
             'rol': {
                 'required': 'Debe seleccionar un rol.',
-            }}
+            }
+        }
+
     def save(self, commit=True):
+        """
+        Sobrescribe el método save() para:
+        - Tomar la contraseña del formulario limpio.
+        - Encriptarla con make_password.
+        - Guardar el usuario si commit=True.
+        """
         usuario = super().save(commit=False)
         password_plano = self.cleaned_data['contraseña']
         usuario.contraseña = make_password(password_plano)  # usar hasher de Django
@@ -42,9 +61,15 @@ class UsuarioForm(forms.ModelForm):
             usuario.save()
         return usuario
 
-from .models import Usuario  # Asegúrate de importar tu modelo de usuario
+
+# Formulario para editar usuarios existentes
+from .models import Usuario  # Importación del modelo
 
 class UsuarioEditForm(forms.ModelForm):
+    """
+    Formulario de edición de usuarios.
+    Permite modificar nombre de usuario, rol y estado activo.
+    """
     class Meta:
         model = Usuario
         fields = ['nombre_usuario', 'activo', 'rol']
@@ -59,19 +84,21 @@ class UsuarioEditForm(forms.ModelForm):
 
 class _EdadCategoriaMixin:
     """
-    Valida coherencia entre la edad del jugador y la categoría del EQUIPO,
-    sin tocar models.py ni usar utils externos.
-    - La edad se evalúa al 31/12 del AÑO ANTERIOR (Opción A).
-    - Mapea códigos 'sub_14' | 'sub_16' | 'sub_18' de Categoria.nombre.
+    Mixin reutilizable para validar la coherencia entre la edad
+    del jugador y la categoría del equipo al que pertenece.
+    Reglas:
+    - La edad se calcula al 31/12 del año anterior (criterio A).
+    - Las categorías válidas son 'sub_14', 'sub_16', 'sub_18'.
     """
 
+    # Etiquetas de categorías
     CATEGORIAS_LABELS = {
         "sub_14": "Sub 14",
         "sub_16": "Sub 16",
         "sub_18": "Sub 18",
     }
 
-    # Rango permitido (min_edad_inclusiva, max_edad_inclusiva):
+    # Rango permitido de edad para cada categoría (mínimo, máximo)
     REGLAS_CATEGORIA = {
         "sub_14": (12, 14),
         "sub_16": (14, 16),
@@ -81,8 +108,8 @@ class _EdadCategoriaMixin:
     @staticmethod
     def fecha_corte(anio=None) -> date:
         """
-        Opción A: usar el 31/12 del AÑO ANTERIOR.
-        Ej.: En 2025, el corte es 31/12/2024.
+        Devuelve la fecha de corte (31 de diciembre del año anterior).
+        Ejemplo: en 2025 → corte = 31/12/2024.
         """
         hoy = date.today()
         anio_base = (anio or hoy.year) - 1
@@ -90,6 +117,9 @@ class _EdadCategoriaMixin:
 
     @classmethod
     def edad_al_corte(cls, fecha_nacimiento: date, corte: date | None = None) -> int:
+        """
+        Calcula la edad de una persona en una fecha de corte dada.
+        """
         corte = corte or cls.fecha_corte()
         return corte.year - fecha_nacimiento.year - (
             (corte.month, corte.day) < (fecha_nacimiento.month, fecha_nacimiento.day)
@@ -97,16 +127,19 @@ class _EdadCategoriaMixin:
 
     def _codigo_categoria_equipo(self, equipo):
         """
-        Obtiene el código de categoría desde equipo.categoria.nombre (choices):
-        'sub_14' | 'sub_16' | 'sub_18'
+        Obtiene el código de categoría del equipo:
+        (debe venir de equipo.categoria.nombre → 'sub_14', 'sub_16', 'sub_18')
         """
         if not equipo or not hasattr(equipo, "categoria") or not equipo.categoria:
             return None
-        # En tu models.py, Categoria.nombre guarda el code de choices ('sub_14', etc.)
         return str(getattr(equipo.categoria, "nombre", "")).lower() or None
 
     def _validar_edad_vs_categoria(self, *, fecha_nacimiento, equipo):
-        """Añade error al campo 'equipo' si la edad no cuadra con la categoría."""
+        """
+        Verifica si la edad del jugador coincide con el rango permitido
+        por la categoría del equipo seleccionado.
+        Si no coincide, añade un error al campo 'equipo'.
+        """
         if not fecha_nacimiento or not equipo:
             return
 
@@ -137,6 +170,14 @@ class _EdadCategoriaMixin:
 # ====================== JUGADOR ======================
 
 class JugadorForm(_EdadCategoriaMixin, forms.ModelForm):
+    """
+    Formulario de creación de jugadores.
+    Incluye validaciones personalizadas:
+    - RUT único.
+    - Al menos un medio de contacto.
+    - Entrenador activo.
+    - Coherencia edad–categoría.
+    """
     class Meta:
         model = Jugador
         fields = [
@@ -193,38 +234,47 @@ class JugadorForm(_EdadCategoriaMixin, forms.ModelForm):
             'socio': {'required': 'Debe asociar un socio.'},
         }
 
-    # RUT único
     def clean_run(self):
+        """
+        Valida que el RUT no esté duplicado en la base de datos.
+        """
         run = self.cleaned_data.get('run', '').upper().strip()
         if Jugador.objects.filter(run=run).exclude(pk=self.instance.pk).exists():
             raise forms.ValidationError("Ya existe un jugador con este RUT.")
         return run
 
-    # Validaciones globales
     def clean(self):
+        """
+        Validaciones globales:
+        - Al menos un medio de contacto.
+        - Entrenador activo.
+        - Coherencia edad–categoría.
+        """
         cleaned_data = super().clean()
         num_celular = cleaned_data.get('num_celular')
         correo = cleaned_data.get('correo')
         equipo = cleaned_data.get('equipo')
         fecha_nacimiento = cleaned_data.get('fecha_nacimiento')
 
-        # Al menos un medio de contacto
+        # Validar contacto
         if not num_celular and not correo:
-            raise forms.ValidationError(
-                "Debe ingresar al menos un medio de contacto (teléfono o correo)."
-            )
+            raise forms.ValidationError("Debe ingresar al menos un medio de contacto (teléfono o correo).")
 
-        # Entrenador activo
+        # Validar entrenador activo
         if equipo and hasattr(equipo, 'entrenador') and not equipo.entrenador.activo:
             raise forms.ValidationError("El entrenador del equipo seleccionado no está activo.")
 
-        # Coherencia edad–categoría (corte: 31/12 del año anterior)
+        # Validar edad–categoría
         self._validar_edad_vs_categoria(fecha_nacimiento=fecha_nacimiento, equipo=equipo)
 
         return cleaned_data
 
 
 class JugadorEditForm(_EdadCategoriaMixin, forms.ModelForm):
+    """
+    Formulario para editar datos de un jugador existente.
+    Reutiliza las validaciones del mixin de edad–categoría.
+    """
     class Meta:
         model = Jugador
         fields = [
@@ -248,23 +298,21 @@ class JugadorEditForm(_EdadCategoriaMixin, forms.ModelForm):
         }
 
     def clean(self):
+        """
+        Validaciones globales (mismo criterio que en JugadorForm).
+        """
         cleaned_data = super().clean()
         num_celular = cleaned_data.get('num_celular')
         correo = cleaned_data.get('correo')
         equipo = cleaned_data.get('equipo')
         fecha_nacimiento = cleaned_data.get('fecha_nacimiento')
 
-        # Al menos un medio de contacto
         if not num_celular and not correo:
-            raise forms.ValidationError(
-                "Debe ingresar al menos un medio de contacto (teléfono o correo)."
-            )
+            raise forms.ValidationError("Debe ingresar al menos un medio de contacto (teléfono o correo).")
 
-        # Entrenador activo
         if equipo and hasattr(equipo, 'entrenador') and not equipo.entrenador.activo:
             raise forms.ValidationError("El entrenador del equipo seleccionado no está activo.")
 
-        # Coherencia edad–categoría (corte: 31/12 del año anterior)
         self._validar_edad_vs_categoria(fecha_nacimiento=fecha_nacimiento, equipo=equipo)
 
         return cleaned_data

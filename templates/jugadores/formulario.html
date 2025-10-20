@@ -2,13 +2,24 @@
 {% block titulo %}Formulario{% endblock titulo %}
 {% block contenido %}
 
+<!--
+    Plantilla: formulario.html
+    Descripción:
+    - Muestra el formulario para registrar un nuevo jugador.
+    - Utiliza un form proveniente de Django (JugadorForm).
+    - Incluye manejo de mensajes (éxito / error).
+    - Tiene botones de guardar y cancelar.
+-->
+
 <div class="container mt-4">
+    <!-- Título principal -->
     <h2 class="mb-4 text-center">Registrar Jugador</h2>
 
-    <!-- 🔔 Mensajes de éxito o error -->
+    <!-- 🔔 Bloque de mensajes (éxito, error, validaciones) -->
     {% if messages %}
     <div class="mb-3">
         {% for message in messages %}
+        <!-- Cada mensaje se muestra como una alerta de Bootstrap -->
         <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
             {{ message }}
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
@@ -17,18 +28,23 @@
     </div>
     {% endif %}
 
-    <!-- 🧾 Formulario de registro -->
+    <!-- 🧾 Formulario de registro de jugador -->
     <form method="post" novalidate>
         {% csrf_token %}
+        <!-- Se renderiza el formulario usando form.as_div,
+            que genera cada campo dentro de un <div> con clases automáticas -->
         {{ form.as_div }}
 
+        <!-- Botones de acción -->
         <div class="d-flex justify-content-between mt-4">
-        <button type="submit" class="btn btn-primary">
-            Guardar Jugador
-        </button>
-        <a href="{% url 'visualizacion_jugadores' %}" class="btn btn-secondary">
-            Cancelar
-        </a>
+            <!-- Botón principal para guardar -->
+            <button type="submit" class="btn btn-primary">
+                Guardar Jugador
+            </button>
+            <!-- Botón de cancelar: redirige a la lista de jugadores -->
+            <a href="{% url 'visualizacion_jugadores' %}" class="btn btn-secondary">
+                Cancelar
+            </a>
         </div>
     </form>
 </div>

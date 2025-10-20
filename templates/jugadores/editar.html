@@ -2,13 +2,24 @@
 {% block titulo %}Editar Jugador{% endblock %}
 {% block contenido %}
 
+<!--
+    Plantilla: editar.html
+    Descripción:
+    - Permite editar los datos de un jugador existente.
+    - Usa el formulario prellenado con los datos del jugador (JugadorEditForm).
+    - Muestra mensajes de confirmación o error.
+    - Incluye botones para guardar los cambios o volver al listado.
+-->
+
 <div class="container mt-4">
+    <!-- Título principal -->
     <h2 class="mb-4 text-center">Editar Jugador</h2>
 
-    <!-- 🔔 Mensajes de confirmación o error -->
+    <!-- 🔔 Bloque de mensajes de confirmación o error -->
     {% if messages %}
     <div class="mb-3">
         {% for message in messages %}
+        <!-- Cada mensaje se muestra con los estilos de Bootstrap -->
         <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
             {{ message }}
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
@@ -17,18 +28,23 @@
     </div>
     {% endif %}
 
-    <!-- 🧾 Formulario de edición -->
+    <!-- 🧾 Formulario de edición del jugador -->
     <form method="post" novalidate>
         {% csrf_token %}
+        <!-- Se utiliza form.as_div para generar automáticamente
+            los campos con etiquetas y clases apropiadas -->
         {{ form.as_div }}
 
+        <!-- Botones de acción -->
         <div class="d-flex justify-content-between mt-4">
-        <button type="submit" class="btn btn-primary">
-            Guardar cambios
-        </button>
-        <a href="{% url 'visualizacion_jugadores' %}" class="btn btn-secondary">
-            Volver al listado
-        </a>
+            <!-- Botón principal para guardar los cambios -->
+            <button type="submit" class="btn btn-primary">
+                Guardar cambios
+            </button>
+            <!-- Botón secundario para volver al listado sin guardar -->
+            <a href="{% url 'visualizacion_jugadores' %}" class="btn btn-secondary">
+                Volver al listado
+            </a>
         </div>
     </form>
 </div>
