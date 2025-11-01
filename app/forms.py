@@ -78,7 +78,7 @@ class UsuarioCrearForm(forms.Form):
         widget=forms.Select(attrs={"class": "form-select"})
     )
     
-    equipo = forms.ModelChoiceField(                 # ← NUEVO (opcional)
+    equipo = forms.ModelChoiceField(
         label="Equipo",
         queryset=Equipo.objects.all().order_by("categoria__slug", "nombre"),
         required=False,
@@ -120,8 +120,6 @@ class UsuarioEditarForm(UsuarioCrearForm):
         required=False,
         widget=forms.PasswordInput(attrs={"class": "form-control", "placeholder": "Repite la nueva contraseña"}),
     )
-    
-
 
     def __init__(self, *args, **kwargs):
         self.user_obj = kwargs.pop("user_obj", None)
@@ -130,22 +128,35 @@ class UsuarioEditarForm(UsuarioCrearForm):
 
     def clean_username(self):
         u = self.cleaned_data["username"]
-        if User.objects.filter(username=u).exclude(pk=self.user_obj.pk).exists():
+        # ✅ Protección: verifica que user_obj exista antes de usar .pk
+        if self.user_obj and User.objects.filter(username=u).exclude(pk=self.user_obj.pk).exists():
+            raise forms.ValidationError("Ese nombre de usuario ya existe.")
+        elif not self.user_obj and User.objects.filter(username=u).exists():
             raise forms.ValidationError("Ese nombre de usuario ya existe.")
         return u
 
     def clean_email(self):
         e = self.cleaned_data.get("email")
-        if e and User.objects.filter(email=e).exclude(pk=self.user_obj.pk).exists():
-            raise forms.ValidationError("Ese correo ya está en uso.")
+        if e:
+            # ✅ Protección: verifica que user_obj exista antes de usar .pk
+            if self.user_obj and User.objects.filter(email=e).exclude(pk=self.user_obj.pk).exists():
+                raise forms.ValidationError("Ese correo ya está en uso.")
+            elif not self.user_obj and User.objects.filter(email=e).exists():
+                raise forms.ValidationError("Ese correo ya está en uso.")
         return e
 
     def clean(self):
-        cd = super().clean()
+        cd = super(UsuarioCrearForm, self).clean()  # ⚠️ Saltamos UsuarioCrearForm.clean() para evitar duplicación
         p1, p2 = cd.get("password1"), cd.get("password2")
         if p1 or p2:
             if p1 != p2:
                 self.add_error("password2", "Las contraseñas no coinciden.")
-        if cd.get("run") and Perfil.objects.filter(run=cd["run"]).exclude(pk=self.perfil_obj.pk).exists():
-            self.add_error("run", "Ese RUN ya está registrado.")
+        
+        # ✅ Protección: verifica que perfil_obj exista antes de usar .pk
+        if cd.get("run"):
+            if self.perfil_obj and Perfil.objects.filter(run=cd["run"]).exclude(pk=self.perfil_obj.pk).exists():
+                self.add_error("run", "Ese RUN ya está registrado.")
+            elif not self.perfil_obj and Perfil.objects.filter(run=cd["run"]).exists():
+                self.add_error("run", "Ese RUN ya está registrado.")
+        
         return cd

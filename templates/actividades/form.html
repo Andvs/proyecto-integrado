@@ -1,0 +1,100 @@
+{% extends "inicio.html" %}
+
+{% block page_title %}{% if modo == "crear" %}Nueva actividad{% else %}Editar actividad{% endif %}{% endblock %}
+
+{% block main %}
+<div class="container-fluid" style="max-width: 900px;">
+
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0">{% if modo == "crear" %}Crear actividad deportiva{% else %}Editar actividad deportiva{% endif %}</h4>
+    <a href="{% url 'actividades_lista' %}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left"></i> Volver
+    </a>
+  </div>
+
+  <form method="post" class="card card-soft p-4">
+    {% csrf_token %}
+
+    <div class="row g-3">
+      <!-- Título -->
+      <div class="col-12">
+        <label class="form-label">Título de la actividad <span class="text-danger">*</span></label>
+        <input type="text" name="titulo" class="form-control" 
+               placeholder="Ej: Entrenamiento Técnico, Partido Amistoso, Torneo Regional..."
+               value="{% if actividad %}{{ actividad.titulo }}{% endif %}" required>
+      </div>
+
+      <!-- Tipo -->
+      <div class="col-md-4">
+        <label class="form-label">Tipo de actividad <span class="text-danger">*</span></label>
+        <select name="tipo" class="form-select" required>
+          <option value="">— Selecciona —</option>
+          {% for valor, etiqueta in tipos %}
+            <option value="{{ valor }}" 
+                    {% if actividad and actividad.tipo == valor %}selected{% endif %}>
+              {{ etiqueta }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Fecha inicio -->
+      <div class="col-md-4">
+        <label class="form-label">Fecha de inicio <span class="text-danger">*</span></label>
+        <input type="date" name="fecha_inicio" class="form-control" 
+               value="{% if actividad %}{{ actividad.fecha_inicio|date:'Y-m-d' }}{% endif %}" required>
+      </div>
+
+      <!-- Fecha fin -->
+      <div class="col-md-4">
+        <label class="form-label">Fecha de fin <span class="text-danger">*</span></label>
+        <input type="date" name="fecha_fin" class="form-control" 
+               value="{% if actividad %}{{ actividad.fecha_fin|date:'Y-m-d' }}{% endif %}" required>
+        <div class="form-text">Puede ser el mismo día para actividades de un solo día.</div>
+      </div>
+
+      <!-- Descripción -->
+      <div class="col-12">
+        <label class="form-label">Descripción</label>
+        <textarea name="descripcion" class="form-control" rows="3" 
+                  placeholder="Describe la actividad: objetivos, lugar, horario, etc.">{% if actividad %}{{ actividad.descripcion }}{% endif %}</textarea>
+      </div>
+
+      <!-- Equipos participantes -->
+      <div class="col-12">
+        <label class="form-label">Equipos participantes <span class="text-danger">*</span></label>
+        <div class="border rounded p-3" style="max-height: 300px; overflow-y: auto;">
+          {% regroup equipos by categoria as equipos_por_categoria %}
+          {% for grupo in equipos_por_categoria %}
+            <div class="mb-3">
+              <h6 class="text-muted">{{ grupo.grouper }}</h6>
+              {% for equipo in grupo.list %}
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="equipos" 
+                         value="{{ equipo.id }}" id="equipo_{{ equipo.id }}"
+                         {% if equipos_seleccionados and equipo.id in equipos_seleccionados %}checked{% endif %}>
+                  <label class="form-check-label" for="equipo_{{ equipo.id }}">
+                    {{ equipo.nombre }}
+                  </label>
+                </div>
+              {% endfor %}
+            </div>
+          {% endfor %}
+        </div>
+        <div class="form-text">Selecciona los equipos que participarán en esta actividad.</div>
+      </div>
+    </div>
+
+    <div class="mt-4 d-flex gap-2">
+      <button type="submit" class="btn btn-primary">
+        {% if modo == "crear" %}
+          <i class="bi bi-check2-circle"></i> Crear actividad
+        {% else %}
+          <i class="bi bi-save"></i> Guardar cambios
+        {% endif %}
+      </button>
+      <a href="{% url 'actividades_lista' %}" class="btn btn-outline-secondary">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

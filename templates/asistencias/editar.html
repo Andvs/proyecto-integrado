@@ -1,0 +1,60 @@
+{% extends "inicio.html" %}
+
+{% block page_title %}Editar asistencia{% endblock %}
+
+{% block main %}
+<div class="container-fluid" style="max-width: 700px;">
+
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0">Editar asistencia</h4>
+    <a href="{% url 'asistencias_lista' %}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left"></i> Volver
+    </a>
+  </div>
+
+  <form method="post" class="card card-soft p-4">
+    {% csrf_token %}
+
+    <!-- Información del registro -->
+    <div class="alert alert-info mb-4">
+      <strong>Jugador:</strong> {{ asistencia.jugador.perfil.nombre_completo }}<br>
+      <strong>Actividad:</strong> {{ asistencia.actividad.titulo }}<br>
+      <strong>Registrado por:</strong> {{ asistencia.entrenador.nombre_completo }}
+    </div>
+
+    <div class="row g-3">
+      <!-- Estado -->
+      <div class="col-12">
+        <label class="form-label">Estado <span class="text-danger">*</span></label>
+        <select name="estado" class="form-select" required>
+          {% for valor, etiqueta in estados %}
+            <option value="{{ valor }}" {% if asistencia.estado == valor %}selected{% endif %}>
+              {{ etiqueta }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Fecha y hora de marcaje -->
+      <div class="col-12">
+        <label class="form-label">Fecha y hora de marcaje <span class="text-danger">*</span></label>
+        <input type="datetime-local" name="fecha_hora_marcaje" class="form-control" 
+               value="{{ asistencia.fecha_hora_marcaje|date:'Y-m-d\TH:i' }}"
+               min="{{ asistencia.actividad.fecha_inicio|date:'Y-m-d' }}T00:00"
+               max="{{ asistencia.actividad.fecha_fin|date:'Y-m-d' }}T23:59"
+               required>
+        <div class="form-text">
+          Debe estar entre {{ asistencia.actividad.fecha_inicio|date:"d/m/Y" }} y {{ asistencia.actividad.fecha_fin|date:"d/m/Y" }}
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-4 d-flex gap-2">
+      <button type="submit" class="btn btn-primary">
+        <i class="bi bi-save"></i> Guardar cambios
+      </button>
+      <a href="{% url 'asistencias_lista' %}" class="btn btn-outline-secondary">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

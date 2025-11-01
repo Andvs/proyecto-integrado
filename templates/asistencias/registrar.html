@@ -1,0 +1,184 @@
+{% extends "inicio.html" %}
+
+{% block page_title %}Registrar asistencia{% endblock %}
+
+{% block main %}
+<div class="container-fluid" style="max-width: 1000px;">
+
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0">Registrar asistencia</h4>
+    <a href="{% url 'asistencias_lista' %}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left"></i> Volver
+    </a>
+  </div>
+
+  <form method="post" class="card card-soft p-4" id="form-asistencia">
+    {% csrf_token %}
+
+    <div class="row g-3 mb-4">
+      <!-- Actividad -->
+      <div class="col-md-6">
+        <label class="form-label">Actividad <span class="text-danger">*</span></label>
+        <select name="actividad" id="select-actividad" class="form-select" required>
+          <option value="">— Selecciona una actividad —</option>
+          {% for act in actividades %}
+            <option value="{{ act.id }}" 
+                    data-fecha-inicio="{{ act.fecha_inicio|date:'Y-m-d' }}"
+                    data-fecha-fin="{{ act.fecha_fin|date:'Y-m-d' }}">
+              {{ act.titulo }} - {{ act.get_tipo_display }} ({{ act.fecha_inicio|date:"d/m/Y" }})
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Fecha y hora de marcaje -->
+      <div class="col-md-6">
+        <label class="form-label">Fecha y hora de marcaje <span class="text-danger">*</span></label>
+        <input type="datetime-local" name="fecha_hora_marcaje" id="fecha-hora-marcaje" 
+               class="form-control" value="{{ fecha_hora_actual }}" required>
+        <div class="form-text">Debe estar dentro del rango de la actividad.</div>
+      </div>
+
+      <!-- Entrenador (solo si es admin) -->
+      {% if entrenadores %}
+        <div class="col-12">
+          <label class="form-label">Entrenador que registra <span class="text-danger">*</span></label>
+          <select name="entrenador" class="form-select" required>
+            <option value="">— Selecciona un entrenador —</option>
+            {% for ent in entrenadores %}
+              <option value="{{ ent.id }}">{{ ent.nombre_completo }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Lista de jugadores -->
+    <div id="lista-jugadores" style="display: none;">
+      <h5 class="mb-3">Marcar asistencia de jugadores</h5>
+      <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i> Marca los jugadores como <strong>Presente</strong> o <strong>Ausente</strong>.
+      </div>
+
+      <div class="table-responsive">
+        <table class="table table-bordered">
+          <thead class="table-light">
+            <tr>
+              <th>Jugador</th>
+              <th>Equipo</th>
+              <th class="text-center">Estado actual</th>
+              <th class="text-center" width="150">Presente</th>
+              <th class="text-center" width="150">Ausente</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-jugadores">
+            <!-- Se llenará dinámicamente con JavaScript -->
+          </tbody>
+        </table>
+      </div>
+
+      <div class="mt-4 d-flex gap-2">
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-check2-circle"></i> Guardar asistencias
+        </button>
+        <a href="{% url 'asistencias_lista' %}" class="btn btn-outline-secondary">Cancelar</a>
+      </div>
+    </div>
+
+    <div id="mensaje-seleccionar" class="text-center text-muted py-5">
+      <i class="bi bi-arrow-up fs-1"></i>
+      <p class="mt-2">Selecciona una actividad para ver los jugadores participantes</p>
+    </div>
+  </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const selectActividad = document.getElementById('select-actividad');
+  const listaJugadores = document.getElementById('lista-jugadores');
+  const mensajeSeleccionar = document.getElementById('mensaje-seleccionar');
+  const tbodyJugadores = document.getElementById('tbody-jugadores');
+  const inputFechaHora = document.getElementById('fecha-hora-marcaje');
+
+  selectActividad.addEventListener('change', function() {
+    const actividadId = this.value;
+    
+    if (!actividadId) {
+      listaJugadores.style.display = 'none';
+      mensajeSeleccionar.style.display = 'block';
+      tbodyJugadores.innerHTML = '';
+      return;
+    }
+
+    // Obtener rango de fechas de la actividad
+    const option = this.options[this.selectedIndex];
+    const fechaInicio = option.dataset.fechaInicio;
+    const fechaFin = option.dataset.fechaFin;
+    
+    // Establecer límites en el input de fecha
+    inputFechaHora.min = fechaInicio + 'T00:00';
+    inputFechaHora.max = fechaFin + 'T23:59';
+    
+    // NO establecer valor automático - ya viene del backend en {{ fecha_hora_actual }}
+
+    // Obtener jugadores vía AJAX
+    fetch(`/asistencias/actividad/${actividadId}/jugadores/`)
+      .then(response => response.json())
+      .then(data => {
+        if (data.jugadores && data.jugadores.length > 0) {
+          tbodyJugadores.innerHTML = '';
+          
+          data.jugadores.forEach(jugador => {
+            const tr = document.createElement('tr');
+            
+            let estadoActual = '';
+            if (jugador.asistencia_actual) {
+              estadoActual = `<span class="badge ${jugador.asistencia_actual === 'Presente' ? 'bg-success' : 'bg-danger'}">${jugador.asistencia_actual}</span>`;
+            } else {
+              estadoActual = '<span class="text-muted">Sin registrar</span>';
+            }
+            
+            tr.innerHTML = `
+              <td><strong>${jugador.nombre}</strong></td>
+              <td>${jugador.equipo}</td>
+              <td class="text-center">${estadoActual}</td>
+              <td class="text-center">
+                <input type="checkbox" class="form-check-input" name="presentes" value="${jugador.id}">
+              </td>
+              <td class="text-center">
+                <input type="checkbox" class="form-check-input" name="ausentes" value="${jugador.id}">
+              </td>
+            `;
+            tbodyJugadores.appendChild(tr);
+          });
+
+          listaJugadores.style.display = 'block';
+          mensajeSeleccionar.style.display = 'none';
+          
+          // Evitar que se marquen ambos checkboxes
+          const checkboxes = tbodyJugadores.querySelectorAll('input[type="checkbox"]');
+          checkboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+              if (this.checked) {
+                const row = this.closest('tr');
+                const otherCheckboxes = row.querySelectorAll('input[type="checkbox"]');
+                otherCheckboxes.forEach(other => {
+                  if (other !== this) other.checked = false;
+                });
+              }
+            });
+          });
+        } else {
+          tbodyJugadores.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-muted">No hay jugadores en esta actividad</td></tr>';
+          listaJugadores.style.display = 'block';
+          mensajeSeleccionar.style.display = 'none';
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        alert('Error al cargar los jugadores');
+      });
+  });
+});
+</script>
+{% endblock %}

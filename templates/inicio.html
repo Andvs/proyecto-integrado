@@ -78,10 +78,21 @@
               <a href="{% url 'usuarios_lista' %}" class="{% if request.resolver_match.url_name == 'usuarios_lista' %}active{% endif %}">
                 <i class="bi bi-person-gear"></i><span>Usuarios</span>
               </a>
-              <a href="#"><i class="bi bi-people"></i><span>Jugadores</span></a>
-              <a href="#"><i class="bi bi-shield"></i><span>Equipos</span></a>
-              <a href="#"><i class="bi bi-calendar-event"></i><span>Actividades</span></a>
-              <a href="#"><i class="bi bi-clipboard-check"></i><span>Asistencias</span></a>
+              <a href="{% url 'jugadores_lista' %}" class="{% if request.resolver_match.url_name == 'jugadores_lista' %}active{% endif %}">
+                <i class="bi bi-people"></i><span>Jugadores</span>
+              </a>
+              <a href="{% url 'entrenadores_lista' %}" class="{% if request.resolver_match.url_name == 'entrenadores_lista' %}active{% endif %}">
+                <i class="bi bi-person-badge"></i><span>Entrenadores</span>
+              </a>
+              <a href="{% url 'equipos_lista' %}" class="{% if request.resolver_match.url_name == 'equipos_lista' %}active{% endif %}">
+                <i class="bi bi-shield"></i><span>Equipos</span>
+              </a>
+              <a href="{% url 'actividades_lista' %}" class="{% if request.resolver_match.url_name == 'actividades_lista' %}active{% endif %}">
+                <i class="bi bi-calendar-event"></i><span>Actividades</span>
+              </a>
+              <a href="{% url 'asistencias_lista' %}" class="{% if request.resolver_match.url_name == 'asistencias_lista' %}active{% endif %}">
+                <i class="bi bi-clipboard-check"></i><span>Asistencias</span>
+              </a>
               <a href="#"><i class="bi bi-graph-up"></i><span>Reportes</span></a>
             {% endif %}
 

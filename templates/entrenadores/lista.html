@@ -1,0 +1,153 @@
+{% extends "inicio.html" %}
+{% load static %}
+
+{% block page_title %}Entrenadores{% endblock %}
+
+{% block main %}
+<div class="container-fluid">
+
+  <!-- Barra superior: búsqueda -->
+  <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+
+    <!-- Búsqueda -->
+    <form method="get" class="flex-grow-1" style="max-width: 650px;">
+      <div class="input-group">
+        <input type="text" name="q" class="form-control"
+               placeholder="Buscar por nombre, RUN o usuario…"
+               value="{{ q|default:'' }}">
+        {% if q %}
+          <a href="{% url 'entrenadores_lista' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-x-lg"></i>
+          </a>
+        {% endif %}
+        <button class="btn btn-primary" type="submit">
+          <i class="bi bi-search"></i> Buscar
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Tabla -->
+  <div class="card card-soft">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Nombre completo</th>
+              <th>RUN</th>
+              <th>Teléfono</th>
+              <th>Correo</th>
+              <th>Equipos a cargo</th>
+              <th>Estado</th>
+              <th class="text-end">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for perfil in page_obj.object_list %}
+              <tr>
+                <td class="text-nowrap">
+                  <strong>{{ perfil.nombre_completo }}</strong><br>
+                  <small class="text-muted">{{ perfil.user.username }}</small>
+                </td>
+                <td>{{ perfil.run }}</td>
+                <td>{{ perfil.telefono|default:"—" }}</td>
+                <td>{{ perfil.user.email|default:"—" }}</td>
+                <td>
+                  {% with equipos=perfil.equipos_dirigidos.all %}
+                    {% if equipos %}
+                      {% for eq in equipos %}
+                        <span class="badge bg-info">{{ eq.nombre }}</span>
+                      {% endfor %}
+                    {% else %}
+                      <span class="text-muted fst-italic">Sin equipos</span>
+                    {% endif %}
+                  {% endwith %}
+                </td>
+                <td>
+                  {% if perfil.user.is_active %}
+                    <span class="badge bg-success">Activo</span>
+                  {% else %}
+                    <span class="badge bg-secondary">Deshabilitado</span>
+                  {% endif %}
+                </td>
+                <td class="text-end">
+                  <div class="btn-group">
+                    <a href="{% url 'entrenadores_editar' perfil.id %}" class="btn btn-sm btn-outline-primary">
+                      <i class="bi bi-pencil-square"></i> Editar
+                    </a>
+
+                    <form action="{% url 'entrenadores_toggle' perfil.id %}" method="post" class="d-inline">
+                      {% csrf_token %}
+                      {% if perfil.user.is_active %}
+                        <button class="btn btn-sm btn-outline-warning" onclick="return confirm('¿Deshabilitar este entrenador?');">
+                          <i class="bi bi-slash-circle"></i> Deshabilitar
+                        </button>
+                      {% else %}
+                        <button class="btn btn-sm btn-outline-success" onclick="return confirm('¿Habilitar este entrenador?');">
+                          <i class="bi bi-check-circle"></i> Habilitar
+                        </button>
+                      {% endif %}
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="7" class="text-center py-4 text-muted">No se encontraron entrenadores.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Paginación -->
+    {% if page_obj.paginator.num_pages > 1 %}
+      <div class="card-footer d-flex justify-content-between align-items-center">
+        <small class="text-muted">
+          Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+        </small>
+        <nav>
+          <ul class="pagination mb-0">
+
+            {% if page_obj.has_previous %}
+              <li class="page-item">
+                <a class="page-link" href="?q={{ q }}&page={{ page_obj.previous_page_number }}">Anterior</a>
+              </li>
+            {% else %}
+              <li class="page-item disabled"><span class="page-link">Anterior</span></li>
+            {% endif %}
+
+            {% for i in page_obj.paginator.page_range %}
+              {% if i == page_obj.number %}
+                <li class="page-item active"><span class="page-link">{{ i }}</span></li>
+
+              {% elif i <= 2 %}
+                <li class="page-item"><a class="page-link" href="?q={{ q }}&page={{ i }}">{{ i }}</a></li>
+
+              {% elif i > page_obj.paginator.num_pages|add:"-2" %}
+                <li class="page-item"><a class="page-link" href="?q={{ q }}&page={{ i }}">{{ i }}</a></li>
+
+              {% elif i >= page_obj.number|add:"-1" and i <= page_obj.number|add:"1" %}
+                <li class="page-item"><a class="page-link" href="?q={{ q }}&page={{ i }}">{{ i }}</a></li>
+
+              {% elif i == 3 or i == page_obj.paginator.num_pages|add:"-2" %}
+                <li class="page-item disabled"><span class="page-link">…</span></li>
+              {% endif %}
+            {% endfor %}
+
+            {% if page_obj.has_next %}
+              <li class="page-item">
+                <a class="page-link" href="?q={{ q }}&page={{ page_obj.next_page_number }}">Siguiente</a>
+              </li>
+            {% else %}
+              <li class="page-item disabled"><span class="page-link">Siguiente</span></li>
+            {% endif %}
+
+          </ul>
+        </nav>
+      </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}
