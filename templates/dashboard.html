@@ -1,119 +1,94 @@
-{% extends 'base.html' %}
+{% extends "inicio.html" %}
 {% load static %}
 
-{% block titulo %}Panel de Administración - Sur Volley{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
 
-{% block extra_css %}
-<style>
-    body {
-        background-color: #f4f6fa;
-    }
-    .dashboard-container {
-        max-width: 1000px;
-        margin-top: 5rem;
-    }
-    .action-card {
-        transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
-    }
-    .action-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 .5rem 1rem rgba(0,0,0,.15)!important;
-    }
-    .action-card .icon {
-        font-size: 4rem;
-        color: #0a2342;
-    }
-</style>
+{% block main %}
+<h2 class="mb-3">Dashboard</h2>
+<p class="text-muted">Hoy: {{ hoy }}</p>
+
+{% if user.is_superuser or user.perfil.tipo == "ADMIN" or user.perfil.tipo == "EQUIP" %}
+  <div class="row g-3">
+    <div class="col-md-4">
+      <div class="card p-3 shadow-sm">
+        <h5>Total de equipos</h5>
+        <div class="display-6">{{ total_equipos }}</div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card p-3 shadow-sm">
+        <h5>Total de actividades</h5>
+        <div class="display-6">{{ total_actividades }}</div>
+      </div>
+    </div>
+  </div>
+
+  <h4 class="mt-4">Actividades próximas</h4>
+  <ul class="list-group">
+    {% for act in actividades_proximas %}
+      <li class="list-group-item d-flex justify-content-between">
+        <span>{{ act.titulo }} — {{ act.get_tipo_display }}</span>
+        <small>{{ act.fecha_inicio }} → {{ act.fecha_fin }}</small>
+      </li>
+    {% empty %}
+      <li class="list-group-item">No hay actividades próximas.</li>
+    {% endfor %}
+  </ul>
+
+{% elif user.perfil.tipo == "ENTRE" %}
+  <h4>Mis equipos</h4>
+  <ul class="list-group mb-3">
+    {% for eq in mis_equipos %}
+      <li class="list-group-item">{{ eq.nombre }} ({{ eq.categoria }})</li>
+    {% empty %}
+      <li class="list-group-item">Aún no tienes equipos asignados.</li>
+    {% endfor %}
+  </ul>
+
+  <h4>Actividades próximas</h4>
+  <ul class="list-group">
+    {% for act in actividades_proximas %}
+      <li class="list-group-item d-flex justify-content-between">
+        <span>{{ act.titulo }} — {{ act.get_tipo_display }}</span>
+        <small>{{ act.fecha_inicio }}</small>
+      </li>
+    {% empty %}
+      <li class="list-group-item">No hay actividades próximas.</li>
+    {% endfor %}
+  </ul>
+
+{% elif user.perfil.tipo == "JUGAD" %}
+  <h4>Mis próximas actividades</h4>
+  <ul class="list-group mb-3">
+    {% for act in actividades_proximas %}
+      <li class="list-group-item d-flex justify-content-between">
+        <span>{{ act.titulo }} — {{ act.get_tipo_display }}</span>
+        <small>{{ act.fecha_inicio }}</small>
+      </li>
+    {% empty %}
+      <li class="list-group-item">No hay actividades próximas.</li>
+    {% endfor %}
+  </ul>
+
+  <h4>Entrenamientos próximos</h4>
+  <ul class="list-group">
+    {% for act in entrenamientos_proximos %}
+      <li class="list-group-item d-flex justify-content-between">
+        <span>{{ act.titulo }}</span>
+        <small>{{ act.fecha_inicio }}</small>
+      </li>
+    {% empty %}
+      <li class="list-group-item">No hay entrenamientos próximos.</li>
+    {% endfor %}
+  </ul>
+
+{% elif user.perfil.tipo == "SOCIO" %}
+  <div class="alert alert-info">Contenido para socios (personaliza aquí).</div>
+
+{% else %}
+  <div class="alert alert-warning">
+    No se reconoce tu tipo de perfil. Contacta al administrador.
+  </div>
+{% endif %}
 {% endblock %}
 
-{% block contenido %}
-<nav class="navbar navbar-expand-lg navbar-dark shadow-sm" style="background-color: #0a2342;">
-    <div class="container">
-        <a class="navbar-brand" href="{% url 'dashboard' %}">
-            <img src="{% static 'img/logo.png' %}" alt="Sur Volley Club" style="height: 50px;">
-            Panel de Administración
-        </a>
-        <div class="d-flex">
-            <a href="{% url 'index' %}" class="btn btn-outline-light">Cerrar Sesión</a>
-        </div>
-    </div>
-</nav>
-
-<div class="container dashboard-container">
-    <div class="text-center mb-5">
-        <h1 class="display-5">Panel de Gestión</h1>
-        <p class="lead text-muted">Selecciona un módulo para comenzar</p>
-    </div>
-
-    <div class="row g-4 justify-content-center">
-
-        <!-- === Sección: Gestión de Usuarios === -->
-        <div class="col-12 text-center mb-3">
-            <h3 class="text-primary fw-bold">Gestión de Usuarios</h3>
-        </div>
-
-        <div class="col-md-5">
-            <a href="{% url 'formulario' %}" class="card action-card text-decoration-none shadow-sm h-100">
-                <div class="card-body text-center p-5">
-                    <div class="icon">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="currentColor" class="bi bi-person-plus-fill" viewBox="0 0 16 16">
-                            <path d="M1 14s-1 0-1-1 1-4 6-4 6 3 6 4-1 1-1 1zm5-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6"/>
-                            <path fill-rule="evenodd" d="M13.5 5a.5.5 0 0 1 .5.5V7h1.5a.5.5 0 0 1 0 1H14v1.5a.5.5 0 0 1-1 0V8h-1.5a.5.5 0 0 1 0-1H13V5.5a.5.5 0 0 1 .5-.5"/>
-                        </svg>
-                    </div>
-                    <h3 class="card-title mt-4">Agregar Usuario</h3>
-                    <p class="card-text text-muted">Crear un nuevo perfil en el sistema.</p>
-                </div>
-            </a>
-        </div>
-
-        <div class="col-md-5">
-            <a href="{% url 'visualizacion' %}" class="card action-card text-decoration-none shadow-sm h-100">
-                <div class="card-body text-center p-5">
-                    <div class="icon">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="currentColor" class="bi bi-people-fill" viewBox="0 0 16 16">
-                            <path d="M7 14s-1 0-1-1 1-4 5-4 5 3 5 4-1 1-1 1zm4-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6m-5.784 6A2.238 2.238 0 0 1 5 13c0-1.355.68-2.75 1.936-3.72A6.325 6.325 0 0 0 5 9c-4 0-5 3-5 4s1 1 1 1zM4.5 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5"/>
-                        </svg>
-                    </div>
-                    <h3 class="card-title mt-4">Visualizar Usuarios</h3>
-                    <p class="card-text text-muted">Ver y administrar la lista de usuarios existentes.</p>
-                </div>
-            </a>
-        </div>
-
-        <!-- === Sección: Gestión de Jugadores === -->
-        <div class="col-12 text-center mt-5 mb-3">
-            <h3 class="text-success fw-bold">Gestión de Jugadores</h3>
-        </div>
-
-        <div class="col-md-5">
-            <a href="{% url 'formulario_jugadores' %}" class="card action-card text-decoration-none shadow-sm h-100">
-                <div class="card-body text-center p-5">
-                    <div class="icon">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="currentColor" class="bi bi-person-plus-fill" viewBox="0 0 16 16">
-                            <path d="M1 14s-1 0-1-1 1-4 6-4 6 3 6 4-1 1-1 1zm5-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6"/>
-                            <path fill-rule="evenodd" d="M13.5 5a.5.5 0 0 1 .5.5V7h1.5a.5.5 0 0 1 0 1H14v1.5a.5.5 0 0 1-1 0V8h-1.5a.5.5 0 0 1 0-1H13V5.5a.5.5 0 0 1 .5-.5"/>
-                        </svg>
-                    </div>
-                    <h3 class="card-title mt-4">Agregar Jugador</h3>
-                    <p class="card-text text-muted">Registrar un nuevo jugador en el sistema.</p>
-                </div>
-            </a>
-        </div>
-
-        <div class="col-md-5">
-            <a href="{% url 'visualizacion_jugadores' %}" class="card action-card text-decoration-none shadow-sm h-100">
-                <div class="card-body text-center p-5">
-                    <div class="icon">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="currentColor" class="bi bi-people-fill" viewBox="0 0 16 16">
-                            <path d="M7 14s-1 0-1-1 1-4 5-4 5 3 5 4-1 1-1 1zm4-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6m-5.784 6A2.238 2.238 0 0 1 5 13c0-1.355.68-2.75 1.936-3.72A6.325 6.325 0 0 0 5 9c-4 0-5 3-5 4s1 1 1 1zM4.5 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5"/>
-                        </svg>
-                    </div>
-                    <h3 class="card-title mt-4">Visualizar Jugadores</h3>
-                    <p class="card-text text-muted">Ver y administrar la lista de jugadores registrados.</p>
-                </div>
-            </a>
-        </div>
-    </div>
-</div>
-{% endblock %}

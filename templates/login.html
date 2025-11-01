@@ -1,82 +1,66 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
 {% load static %}
 
-{% block titulo %}Iniciar Sesión - Sur Volley Club{% endblock %}
-
-{% block extra_css %}
-<style>
-    body {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        min-height: 100vh;
-        background-color: #0a2342;
-    }
-    main { width: 100%; }
-/* 🎨 Ajuste de color del texto de los mensajes globales en login */
-    .alert {
-        color: #ffffff !important;          /* texto blanco */
-        background-color: transparent !important;  /* sin fondo */
-        border: none !important;
-        text-align: center;
-        font-weight: 500;
-    }
-    .alert button.btn-close {
-        filter: invert(1); /* hace visible la X en fondo oscuro */
-    }
-</style>
-{% endblock %}
+{% block titulo %}Iniciar sesión{% endblock %}
 
 {% block contenido %}
-<div class="container">
-    <div class="row justify-content-center">   
-        <!-- 🔔 Mensajes (Bootstrap alert bonita) -->
-    {% if messages %}
-    <div class="col-md-6 col-lg-4 mt-3">
-        {% for message in messages %}
-        <div class="alert 
-                    {% if message.tags == 'error' %}alert-danger
-                    {% elif message.tags == 'success' %}alert-success
-                    {% elif message.tags == 'warning' %}alert-warning
-                    {% else %}alert-info{% endif %}
-                    alert-dismissible fade show shadow-sm text-center fw-semibold"
-            role="alert">
-            {{ message }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
-        </div>
-        {% endfor %}
+<style>
+  body {
+    background: linear-gradient(135deg, #0a84c1 0%, #005a9e 100%);
+  }
+  .login-card {
+    max-width: 400px;
+    margin: 80px auto;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 6px 18px rgba(0,0,0,.15);
+    padding: 2rem;
+  }
+  .login-card img {
+    width: 80px;
+    display: block;
+    margin: 0 auto 1rem;
+  }
+</style>
+
+<div class="login-card text-center">
+  <a href="{% url "index" %}"><img src="{% static 'img/nuevo_logo.png' %}" alt="Sur Volley Club"></a>
+  <h4 class="mb-4">Iniciar sesión</h4>
+  
+
+
+  <form method="post" novalidate>
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+
+    <div class="mb-3 text-start">
+      <label for="{{ form.username.id_for_label }}" class="form-label">Usuario</label>
+      {{ form.username }}
+      {% if form.username.errors %}
+        <div class="invalid-feedback d-block">{{ form.username.errors|striptags }}</div>
+      {% endif %}
     </div>
-    {% endif %}
-    <!-- 🔔 Fin mensajes -->
-    
-        <div class="col-md-6 col-lg-4">
-        <div class="card shadow-lg border-0 rounded-lg mt-3">
-            <div class="card-header text-center bg-white border-0">
-            <h2 class="fw-bold my-4" style="color: #0a2342;">Iniciar Sesión</h2>
-            </div>
-            <div class="card-body">
-            <form action="{% url 'login' %}" method="POST">
-                {% csrf_token %}
-                <div class="form-floating mb-3">
-                <input type="text" class="form-control" id="usuario" name="nombre_usuario"
-                        placeholder="Ingrese su usuario" required>
-                <label for="usuario">Usuario</label>
-                </div>
 
-                <div class="form-floating mb-3">
-                <input type="password" class="form-control" id="password" name="contraseña"
-                        placeholder="Ingrese su contraseña" required>
-                <label for="password">Contraseña</label>
-                </div>
-
-                <div class="d-grid mt-4">
-                <button type="submit" class="btn btn-primary btn-lg fw-bold">Iniciar Sesión</button>
-                </div>
-            </form>
-            </div>
-        </div>
-        </div>
-
+    <div class="mb-3 text-start">
+      <label for="{{ form.password.id_for_label }}" class="form-label">Contraseña</label>
+      {{ form.password }}
+      {% if form.password.errors %}
+        <div class="invalid-feedback d-block">{{ form.password.errors|striptags }}</div>
+      {% endif %}
     </div>
+
+    <div class="mb-3 text-start form-check">
+      {{ form.remember_me }}
+      <label class="form-check-label" for="{{ form.remember_me.id_for_label }}">
+        {{ form.remember_me.label }}
+      </label>
+    </div>
+
+    <button type="submit" class="btn btn-primary w-100">Ingresar</button>
+  </form>
+
+  <p class="mt-4 text-muted small mb-0">
+    © 2025 Sur Voley Club 
+  </p>
 </div>
 {% endblock %}

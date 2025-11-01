@@ -1,322 +1,331 @@
-# --- Importaciones estándar de Django y del proyecto ---
-from django.shortcuts import render, redirect, get_object_or_404  # helpers para vistas y redirecciones
-from django.core.paginator import Paginator                         # paginación de listas
-from django.db.models import Q                                      # consultas OR/AND dinámicas
-from django.contrib import messages                                 # sistema de mensajes flash
-from django.contrib.auth.hashers import make_password, check_password  # hash/verificación de contraseñas
-from .form import *                                                 # formularios locales (UsuarioForm, etc.)
-from .models import *                                               # modelos locales (Usuario, Jugador, etc.)
-from urllib.parse import unquote                                    # decodificar 'next' en URLs
+# app/views.py
+from datetime import date
 
-# Create your views here.
+from django.contrib import messages
+from django.contrib.auth import get_user_model, login, logout
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.forms import AuthenticationForm
+from django.core.paginator import Paginator
+from django.db.models import Q
+from django.shortcuts import get_object_or_404, redirect, render
+
+from .forms import UsuarioCrearForm, UsuarioEditarForm
+from .models import (
+    Perfil, PerfilTipo,
+    ActividadDeportiva, Jugador, Equipo,
+)
+
+User = get_user_model()
+
+
+# ==========================
+# Público
+# ==========================
 def index(request):
-    """
-    Vista simple de inicio.
-    Renderiza la plantilla 'index.html' sin contexto adicional.
-    """
+    """Landing pública (index.html)."""
     return render(request, "index.html")
 
-def formulario(request):
-    """
-    Crea un Usuario usando UsuarioForm.
-    - Si es POST: valida el formulario, hashea la contraseña y guarda.
-    - Si es GET: muestra el formulario vacío.
-    Importante: la contraseña NO se guarda en texto plano; se usa make_password.
-    """
+
+# ==========================
+# Autenticación
+# ==========================
+def login_view(request):
+    if request.user.is_authenticated:
+        return redirect("dashboard")
+
+    form = AuthenticationForm(request, data=request.POST or None)
+
+    # Estilo Bootstrap rápido
+    for name, field in form.fields.items():
+        css = field.widget.attrs.get("class", "")
+        field.widget.attrs["class"] = (css + " form-control").strip()
+        field.widget.attrs.setdefault("placeholder", field.label)
+
+    # Marcar errores de campo
+    if form.is_bound and form.errors:
+        for name in form.errors.keys():
+            css = form.fields[name].widget.attrs.get("class", "")
+            if "is-invalid" not in css:
+                form.fields[name].widget.attrs["class"] = (css + " is-invalid").strip()
+
     if request.method == "POST":
-        form = UsuarioForm(request.POST)
         if form.is_valid():
-            # Guardamos el usuario sin escribir aún en BD para poder intervenir la contraseña
-            usuario = form.save(commit=False)
+            login(request, form.get_user())
+            messages.success(request, "¡Bienvenido/a!")
+            return redirect("dashboard")
+        messages.error(request, "Usuario o contraseña inválidos.")
 
-            # Tomamos la contraseña validada del form y la transformamos a hash seguro
-            contraseña_plana = form.cleaned_data['contraseña']
-            usuario.contraseña = make_password(contraseña_plana)
+    return render(request, "login.html", {"form": form})
 
-            # Persistimos el usuario
-            usuario.save()
-            # Volvemos a la lista/visualización de usuarios
-            return redirect("visualizacion")
-    else:
-        # Primera carga o petición GET: formulario vacío
-        form = UsuarioForm()
 
-    # Volvemos a pintar el formulario (con errores si los hubiera)
-    return render(request, "usuarios/formulario.html", {"form": form})
+@login_required
+def logout_view(request):
+    logout(request)
+    messages.info(request, "Sesión cerrada correctamente.")
+    return redirect("index")
 
-# --- VISTA DE LOGIN CON DEPURACIÓN ---
-def login(request):
+
+# ==========================
+# Helpers de permisos
+# ==========================
+def _es_admin_equipo(user):
     """
-    Autenticación manual basada en el modelo Usuario del proyecto (no el auth.User estándar).
-    Flujo:
-        1) Busca el usuario por nombre de usuario.
-        2) Verifica la contraseña con check_password.
-        3) Bloquea el ingreso si Usuario.activo == False.
-        4) Si el usuario tiene un Jugador vinculado y ese Jugador está inactivo, también bloquea.
-        5) En caso OK, guarda 'usuario_id' en la sesión y redirige a 'next' o 'dashboard'.
+    True si el usuario es superusuario o si su perfil es ADMIN / EQUIPO_ADMIN.
     """
-    if request.method == 'POST':
-        # Normalizamos entradas del form
-        nombre_usuario = (request.POST.get('nombre_usuario') or '').strip()
-        contrasena = request.POST.get('contraseña') or ''
+    if user.is_superuser:
+        return True
+    perfil = getattr(user, "perfil", None)
+    return bool(perfil and perfil.tipo in (PerfilTipo.ADMIN, PerfilTipo.EQUIPO_ADMIN))
 
-        # 1) Buscar usuario por nombre de usuario
-        try:
-            usuario = Usuario.objects.get(nombre_usuario=nombre_usuario)
-        except Usuario.DoesNotExist:
-            messages.error(request, 'Nombre de usuario o contraseña incorrectos.')
-            return redirect('login')
 
-        # 2) Validar contraseña usando el hash almacenado
-        if not check_password(contrasena, usuario.contraseña):
-            messages.error(request, 'Nombre de usuario o contraseña incorrectos.')
-            return redirect('login')
-
-        # 3) Bloqueo por cuenta de Usuario inactiva
-        if not usuario.activo:
-            messages.error(request, 'Esta cuenta ha sido deshabilitada.')
-            return redirect('login')
-
-        # 4) Bloqueo si existe Jugador vinculado y está inactivo
-        jugador = Jugador.objects.filter(usuario=usuario).first()
-        if jugador is not None and not jugador.activo:
-            messages.error(request, 'Tu perfil de jugador está deshabilitado; no puedes ingresar.')
-            return redirect('login')
-
-        # 5) Autenticación exitosa: persistimos el id en la sesión y redirigimos
-        request.session['usuario_id'] = usuario.id
-        messages.success(request, f'Bienvenido, {usuario.nombre_usuario}')
-        next_url = request.GET.get('next')  # permite volver a la página que pidió login
-        return redirect(next_url or 'dashboard')
-
-    # GET: mostrar formulario de login
-    return render(request, 'login.html')
-
-def visualizacion(request):
-    """
-    Lista paginada de Usuarios con búsqueda flexible:
-    - Busca por texto en nombre de usuario y nombre del rol.
-    - Si el query coincide con términos de 'activo'/'inactivo', filtra por el booleano además del texto.
-    - Paginación de 10 elementos por página.
-    Contexto expuesto: page_obj (página actual) y search_query (cadena de búsqueda).
-    """
-    query = request.GET.get('q')
-    usuarios_list = Usuario.objects.all().order_by('id')
-
-    if query:
-        # Búsqueda textual base
-        text_query = (
-            Q(nombre_usuario__icontains=query) |
-            Q(rol__nombre__icontains=query)  # Asumiendo que rol tiene campo 'nombre'
-        )
-
-        # Soporte a búsquedas tipo "activo"/"inactivo" interpretando la cadena del usuario
-        query_lower = query.lower()
-
-        # Palabras que interpretamos como "activo=True"
-        palabras_activo = ['si', 'sí', 'activo', 'activos', 'true', '1']
-
-        # Palabras que interpretamos como "activo=False"
-        palabras_inactivo = ['no', 'inactivo', 'inactivos', 'false', '0']
-
-        if query_lower in palabras_activo:
-            final_query = text_query | Q(activo=True)
-        elif query_lower in palabras_inactivo:
-            final_query = text_query | Q(activo=False)
-        else:
-            final_query = text_query
-
-        # Filtramos y evitamos duplicados por joins
-        usuarios_list = usuarios_list.filter(final_query).distinct()
-
-    # Paginación (10 por página)
-    paginator = Paginator(usuarios_list, 10)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-
-    context = {
-        'page_obj': page_obj,
-        'search_query': query,
-    }
-    return render(request, 'usuarios/visualizacion.html', context)
-
-def editar_usuario(request, usuario_id):
-    """
-    Edita un Usuario existente.
-    - GET: muestra el formulario precargado.
-    - POST: valida y guarda cambios; luego redirige a la visualización.
-    """
-    usuario = get_object_or_404(Usuario, pk=usuario_id)
-
-    if request.method == 'POST':
-        # Cargamos datos enviados sobre la instancia existente
-        form = UsuarioEditForm(request.POST, instance=usuario)
-        if form.is_valid():
-            form.save()
-            messages.success(request, f'¡Usuario "{usuario.nombre_usuario}" actualizado correctamente!')
-            return redirect('visualizacion')  # usar el name de la URL de visualización
-    else:
-        # Mostramos el formulario con los datos actuales
-        form = UsuarioEditForm(instance=usuario)
-
-    context = {
-        'form': form,
-        'usuario': usuario,
-    }
-    return render(request, 'usuarios/editar.html', context)
-
-def desabilitar_usuario(request, user_id):
-    """
-    Deshabilita (activo=False) un Usuario por su id.
-    Seguridad/UX:
-    - Previene que el usuario actualmente logueado se deshabilite a sí mismo.
-    - Muestra mensajes de éxito/error y vuelve a la lista de usuarios.
-    Nota: el nombre de la función mantiene el mismo identificador aunque “desabilitar” está con una ‘b’.
-    """
-    # Evita que el usuario activo se autodeshabilite
-    logged_in_user_id = request.session.get('usuario_id')
-    if logged_in_user_id == user_id:
-        messages.error(request, 'No puedes deshabilitar tu propia cuenta mientras la usas.', extra_tags='danger')
-        return redirect('visualizacion')
-
-    # Marcamos el usuario como inactivo
-    usuario = get_object_or_404(Usuario, id=user_id)
-    usuario.activo = False
-    usuario.save()
-    messages.success(request, f'El usuario "{usuario.nombre_usuario}" ha sido deshabilitado correctamente.')
-    return redirect('visualizacion')
-
+# ==========================
+# Dashboard
+# ==========================
+@login_required
 def dashboard(request):
     """
-    Muestra un panel simple (placeholder) tras el login correcto.
+    'dashboard.html' hereda de 'inicio.html' (sidebar).
+    El centro cambia según Perfil.tipo. Superusuario funciona aunque no tenga Perfil.
     """
-    return render(request, "dashboard.html")
+    user = request.user
+    perfil = getattr(user, "perfil", None)
+    hoy = date.today()
+    ctx = {"perfil": perfil, "hoy": hoy}
 
-# -------------------------
-#   SECCIÓN: JUGADORES
-# -------------------------
-def formulario_jugadores(request):
-    """
-    Crea un Jugador utilizando JugadorForm.
-    - POST válido: guarda y redirige a listado de jugadores.
-    - POST inválido: muestra errores.
-    - GET: muestra formulario vacío.
-    """
-    if request.method == "POST":
-        form = JugadorForm(request.POST)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "¡Jugador registrado exitosamente!")
-            return redirect("visualizacion_jugadores")
+    # ✅ Superusuario: mostrar tablero admin aunque no tenga Perfil
+    if user.is_superuser:
+        ctx.update({
+            "total_equipos": Equipo.objects.count(),
+            "total_actividades": ActividadDeportiva.objects.count(),
+            "actividades_proximas": (ActividadDeportiva.objects
+                                     .filter(fecha_inicio__gte=hoy)
+                                     .order_by("fecha_inicio")[:8]),
+        })
+        return render(request, "dashboard.html", ctx)
+
+    # Usuarios “normales”: requieren Perfil
+    if not perfil:
+        messages.warning(request, "Tu usuario no tiene un Perfil asociado.")
+        return render(request, "dashboard.html", ctx)
+
+    if perfil.tipo in (PerfilTipo.ADMIN, PerfilTipo.EQUIPO_ADMIN):
+        ctx.update({
+            "total_equipos": Equipo.objects.count(),
+            "total_actividades": ActividadDeportiva.objects.count(),
+            "actividades_proximas": (ActividadDeportiva.objects
+                                     .filter(fecha_inicio__gte=hoy)
+                                     .order_by("fecha_inicio")[:8]),
+        })
+
+    elif perfil.tipo == PerfilTipo.ENTRENADOR:
+        equipos_ids = perfil.equipos_dirigidos.values_list("id", flat=True)
+        actividades = (ActividadDeportiva.objects
+                       .filter(equipos__in=equipos_ids, fecha_inicio__gte=hoy)
+                       .order_by("fecha_inicio", "titulo")
+                       .distinct()[:10])
+        ctx.update({
+            "mis_equipos": perfil.equipos_dirigidos.all(),
+            "actividades_proximas": actividades,
+        })
+
+    elif perfil.tipo == PerfilTipo.JUGADOR:
+        jugador = getattr(perfil, "jugador", None)
+        if jugador:
+            ctx.update({
+                "jugador": jugador,
+                "actividades_proximas": getattr(jugador, "actividades_proximas", lambda **kw: [])(desde=hoy)[:10],
+                "entrenamientos_proximos": getattr(jugador, "entrenamientos_proximos", lambda **kw: [])(desde=hoy)[:10],
+            })
         else:
-            messages.error(request, "Por favor corrige los errores del formulario.")
-    else:
-        form = JugadorForm()
+            messages.warning(request, "Tu perfil no está vinculado a un Jugador.")
 
-    return render(request, "jugadores/formulario.html", {"form": form})
+    elif perfil.tipo == PerfilTipo.SOCIO:
+        pass
 
-def visualizacion_jugadores(request):
-    """
-    Lista paginada de Jugadores con filtros de búsqueda:
-    - Campos de texto: nombre, apellido, RUN, nombre de equipo, categoría de equipo.
-    - Palabras clave para estado: 'activo'/'inactivo' como en usuarios.
-    - Optimización: select_related para evitar N+1 en equipo/categoría/entrenador.
-    """
-    query = request.GET.get('q')
-    jugadores_list = (
-        Jugador.objects
-        .select_related('equipo', 'equipo__categoria', 'equipo__entrenador')  # join para rendimiento
-        .all()
-        .order_by('id')
-    )
+    return render(request, "dashboard.html", ctx)
 
-    if query:
-        # Filtro textual
-        text_query = (
-            Q(nombre__icontains=query) |
-            Q(apellido__icontains=query) |
-            Q(run__icontains=query) |
-            Q(equipo__nombre__icontains=query) |
-            Q(equipo__categoria__nombre__icontains=query)
+
+# ==========================
+# Usuarios: lista / búsqueda
+# ==========================
+@login_required
+def usuarios_lista(request):
+    if not _es_admin_equipo(request.user):
+        messages.error(request, "No tienes permisos para ver usuarios.")
+        return redirect("dashboard")
+
+    q = (request.GET.get("q") or "").strip()
+
+    qs = (Perfil.objects
+          .select_related("user")
+          .order_by("apellido_paterno", "apellido_materno", "primer_nombre"))
+
+    if q:
+        qs = qs.filter(
+            Q(user__username__icontains=q) |
+            Q(user__email__icontains=q) |
+            Q(primer_nombre__icontains=q) |
+            Q(segundo_nombre__icontains=q) |
+            Q(apellido_paterno__icontains=q) |
+            Q(apellido_materno__icontains=q) |
+            Q(run__icontains=q) |
+            Q(tipo__icontains=q)
         )
 
-        # Filtro por estado activo/inactivo interpretando texto ingresado
-        query_lower = query.lower()
-        palabras_activo = ['si', 'sí', 'activo', 'activos', 'true', '1']
-        palabras_inactivo = ['no', 'inactivo', 'inactivos', 'false', '0']
+    paginator = Paginator(qs, 10)
+    page_obj = paginator.get_page(request.GET.get("page"))
+    return render(request, "usuarios/lista.html", {"page_obj": page_obj, "q": q})
 
-        if query_lower in palabras_activo:
-            final_query = text_query | Q(activo=True)
-        elif query_lower in palabras_inactivo:
-            final_query = text_query | Q(activo=False)
+
+# ==========================
+# Usuarios: crear
+# ==========================
+@login_required
+def usuarios_crear(request):
+    if not _es_admin_equipo(request.user):
+        messages.error(request, "No tienes permisos para crear usuarios.")
+        return redirect("usuarios_lista")
+
+    form = UsuarioCrearForm(request.POST or None)
+
+    if request.method == "POST" and form.is_valid():
+        cd = form.cleaned_data
+
+        # 1) User
+        user = User.objects.create_user(
+            username=cd["username"],
+            email=cd.get("email") or "",
+            password=cd["password1"],
+            is_active=True,
+        )
+
+        # 2) Perfil
+        perfil = Perfil.objects.create(
+            user=user,
+            tipo=cd["tipo"],
+            run=cd["run"],
+            telefono=cd.get("telefono") or "",
+            primer_nombre=cd["primer_nombre"],
+            segundo_nombre=cd.get("segundo_nombre") or "",
+            apellido_paterno=cd["apellido_paterno"],
+            apellido_materno=cd["apellido_materno"],
+        )
+
+        # 3) Datos extra si es JUGADOR (equipo opcional)
+        if cd["tipo"] == PerfilTipo.JUGADOR:
+            Jugador.objects.update_or_create(
+                perfil=perfil,
+                defaults={
+                    "fecha_nacimiento": cd.get("fecha_nacimiento"),
+                    "tipo_sangre": cd.get("tipo_sangre") or None,
+                    "equipo": cd.get("equipo") or None,  # opcional
+                }
+            )
+
+        messages.success(request, f"Usuario '{user.username}' creado correctamente.")
+        return redirect("usuarios_lista")
+
+    return render(request, "usuarios/form.html", {"form": form, "modo": "crear"})
+
+
+# ==========================
+# Usuarios: editar
+# ==========================
+@login_required
+def usuarios_editar(request, perfil_id):
+    if not _es_admin_equipo(request.user):
+        messages.error(request, "No tienes permisos para editar usuarios.")
+        return redirect("usuarios_lista")
+
+    perfil = get_object_or_404(Perfil.objects.select_related("user"), pk=perfil_id)
+
+    initial = dict(
+        username=perfil.user.username,
+        email=perfil.user.email,
+        tipo=perfil.tipo,
+        run=perfil.run,
+        telefono=perfil.telefono,
+        primer_nombre=perfil.primer_nombre,
+        segundo_nombre=perfil.segundo_nombre,
+        apellido_paterno=perfil.apellido_paterno,
+        apellido_materno=perfil.apellido_materno,
+        # Prefill de jugador
+        fecha_nacimiento=getattr(getattr(perfil, "jugador", None), "fecha_nacimiento", None),
+        tipo_sangre=getattr(getattr(perfil, "jugador", None), "tipo_sangre", "") or "",
+        equipo=getattr(getattr(perfil, "jugador", None), "equipo", None),
+    )
+
+    form = UsuarioEditarForm(
+        request.POST or None,
+        initial=initial,
+        user_obj=perfil.user,
+        perfil_obj=perfil,
+    )
+
+    if request.method == "POST" and form.is_valid():
+        cd = form.cleaned_data
+
+        # 1) User
+        perfil.user.username = cd["username"]
+        perfil.user.email = cd.get("email") or ""
+        if cd.get("password1"):
+            perfil.user.set_password(cd["password1"])
+        perfil.user.save()
+
+        # 2) Perfil
+        perfil.tipo = cd["tipo"]
+        perfil.run = cd["run"]
+        perfil.telefono = cd.get("telefono") or ""
+        perfil.primer_nombre = cd["primer_nombre"]
+        perfil.segundo_nombre = cd.get("segundo_nombre") or ""
+        perfil.apellido_paterno = cd["apellido_paterno"]
+        perfil.apellido_materno = cd["apellido_materno"]
+        perfil.save()
+
+        # 3) Jugador: crear/actualizar o eliminar según tipo (equipo opcional)
+        if cd["tipo"] == PerfilTipo.JUGADOR:
+            Jugador.objects.update_or_create(
+                perfil=perfil,
+                defaults={
+                    "fecha_nacimiento": cd.get("fecha_nacimiento"),
+                    "tipo_sangre": cd.get("tipo_sangre") or None,
+                    "equipo": cd.get("equipo") or None,  # opcional
+                }
+            )
         else:
-            final_query = text_query
+            Jugador.objects.filter(perfil=perfil).delete()
 
-        jugadores_list = jugadores_list.filter(final_query).distinct()
+        messages.success(request, f"Usuario '{perfil.user.username}' actualizado.")
+        return redirect("usuarios_lista")
 
-    # Paginación
-    paginator = Paginator(jugadores_list, 10)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
+    return render(request, "usuarios/form.html", {"form": form, "modo": "editar", "perfil": perfil})
 
-    context = {
-        'page_obj': page_obj,
-        'search_query': query,
-    }
-    return render(request, "jugadores/visualizacion.html", context)
 
-def editar_jugador(request, jugador_id):
-    """
-    Edita un Jugador existente.
-    - GET: muestra el formulario precargado.
-    - POST: valida y guarda cambios; luego redirige a la visualización de jugadores.
-    """
-    jugador = get_object_or_404(Jugador, pk=jugador_id)
+# ==========================
+# Usuarios: habilitar / deshabilitar
+# ==========================
+@login_required
+def usuarios_toggle(request, perfil_id):
+    if request.method != "POST":
+        return redirect("usuarios_lista")
 
-    if request.method == 'POST':
-        form = JugadorEditForm(request.POST, instance=jugador)
-        if form.is_valid():
-            form.save()
-            messages.success(request, f'¡Jugador "{jugador.nombre} {jugador.apellido}" actualizado correctamente!')
-            return redirect('visualizacion_jugadores')
+    if not _es_admin_equipo(request.user):
+        messages.error(request, "No tienes permisos para modificar usuarios.")
+        return redirect("usuarios_lista")
+
+    perfil = get_object_or_404(Perfil.objects.select_related("user"), id=perfil_id)
+
+    # Evita deshabilitar tu propia cuenta
+    if perfil.user_id == request.user.id:
+        messages.warning(request, "No puedes deshabilitar tu propia cuenta.")
+        return redirect("usuarios_lista")
+
+    perfil.user.is_active = not perfil.user.is_active
+    perfil.user.save(update_fields=["is_active"])
+
+    if perfil.user.is_active:
+        messages.success(request, f"Usuario '{perfil.user.username}' habilitado.")
     else:
-        form = JugadorEditForm(instance=jugador)
+        messages.warning(request, f"Usuario '{perfil.user.username}' deshabilitado.")
 
-    context = {
-        'form': form,
-        'jugador': jugador,
-    }
-    return render(request, "jugadores/editar.html", context)
-
-def deshabilitar_jugador(request, jugador_id):
-    """
-    Deshabilita (activo=False) un Jugador.
-    - Usa update_fields para tocar sólo el campo 'activo'.
-    - Si viene parámetro ?next=..., regresa a esa misma URL (útil para mantener la página actual de la paginación/filtros).
-    - Si no, vuelve al listado de jugadores.
-    """
-    jugador = get_object_or_404(Jugador, id=jugador_id)
-    jugador.activo = False
-    jugador.save(update_fields=["activo"])
-    messages.warning(request, f'Jugador "{jugador.nombre} {jugador.apellido}" deshabilitado correctamente.')
-
-    # Mantenerse en la misma URL si viene ?next=...
-    next_url = request.GET.get("next")
-    if next_url:
-        return redirect(unquote(next_url))
-    return redirect("visualizacion_jugadores")  # <- lista de jugadores, NO usuarios
-
-def habilitar_jugador(request, jugador_id):
-    """
-    Habilita (activo=True) un Jugador.
-    - Mismo manejo de ?next=... que en deshabilitar.
-    """
-    jugador = get_object_or_404(Jugador, id=jugador_id)
-    jugador.activo = True
-    jugador.save(update_fields=["activo"])
-    messages.success(request, f'Jugador "{jugador.nombre} {jugador.apellido}" habilitado correctamente.')
-
-    next_url = request.GET.get("next")
-    if next_url:
-        return redirect(unquote(next_url))
-    return redirect("visualizacion_jugadores")  # <- lista de jugadores, NO usuarios
+    return redirect("usuarios_lista")
