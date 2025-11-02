@@ -1,4 +1,4 @@
-# app/views.py
+# app/views.py - ARCHIVO COMPLETO CORREGIDO
 from datetime import date
 
 from django.contrib import messages
@@ -35,13 +35,11 @@ def login_view(request):
 
     form = AuthenticationForm(request, data=request.POST or None)
 
-    # Estilo Bootstrap rápido
     for name, field in form.fields.items():
         css = field.widget.attrs.get("class", "")
         field.widget.attrs["class"] = (css + " form-control").strip()
         field.widget.attrs.setdefault("placeholder", field.label)
 
-    # Marcar errores de campo
     if form.is_bound and form.errors:
         for name in form.errors.keys():
             css = form.fields[name].widget.attrs.get("class", "")
@@ -69,9 +67,7 @@ def logout_view(request):
 # Helpers de permisos
 # ==========================
 def _es_admin_equipo(user):
-    """
-    True si el usuario es superusuario o si su perfil es ADMIN / EQUIPO_ADMIN.
-    """
+    """True si el usuario es superusuario o si su perfil es ADMIN / EQUIPO_ADMIN."""
     if user.is_superuser:
         return True
     perfil = getattr(user, "perfil", None)
@@ -83,16 +79,11 @@ def _es_admin_equipo(user):
 # ==========================
 @login_required
 def dashboard(request):
-    """
-    'dashboard.html' hereda de 'inicio.html' (sidebar).
-    El centro cambia según Perfil.tipo. Superusuario funciona aunque no tenga Perfil.
-    """
     user = request.user
     perfil = getattr(user, "perfil", None)
     hoy = date.today()
     ctx = {"perfil": perfil, "hoy": hoy}
 
-    # ✅ Superusuario: mostrar tablero admin aunque no tenga Perfil
     if user.is_superuser:
         ctx.update({
             "total_equipos": Equipo.objects.count(),
@@ -103,7 +94,6 @@ def dashboard(request):
         })
         return render(request, "dashboard.html", ctx)
 
-    # Usuarios “normales”: requieren Perfil
     if not perfil:
         messages.warning(request, "Tu usuario no tiene un Perfil asociado.")
         return render(request, "dashboard.html", ctx)
@@ -146,7 +136,7 @@ def dashboard(request):
 
 
 # ==========================
-# Usuarios: lista / búsqueda
+# Usuarios
 # ==========================
 @login_required
 def usuarios_lista(request):
@@ -177,9 +167,6 @@ def usuarios_lista(request):
     return render(request, "usuarios/lista.html", {"page_obj": page_obj, "q": q})
 
 
-# ==========================
-# Usuarios: crear
-# ==========================
 @login_required
 def usuarios_crear(request):
     if not _es_admin_equipo(request.user):
@@ -191,7 +178,6 @@ def usuarios_crear(request):
     if request.method == "POST" and form.is_valid():
         cd = form.cleaned_data
 
-        # 1) User
         user = User.objects.create_user(
             username=cd["username"],
             email=cd.get("email") or "",
@@ -199,7 +185,6 @@ def usuarios_crear(request):
             is_active=True,
         )
 
-        # 2) Perfil
         perfil = Perfil.objects.create(
             user=user,
             tipo=cd["tipo"],
@@ -211,14 +196,13 @@ def usuarios_crear(request):
             apellido_materno=cd["apellido_materno"],
         )
 
-        # 3) Datos extra si es JUGADOR (equipo opcional)
         if cd["tipo"] == PerfilTipo.JUGADOR:
             Jugador.objects.update_or_create(
                 perfil=perfil,
                 defaults={
                     "fecha_nacimiento": cd.get("fecha_nacimiento"),
                     "tipo_sangre": cd.get("tipo_sangre") or None,
-                    "equipo": cd.get("equipo") or None,  # opcional
+                    "equipo": cd.get("equipo") or None,
                 }
             )
 
@@ -228,9 +212,6 @@ def usuarios_crear(request):
     return render(request, "usuarios/form.html", {"form": form, "modo": "crear"})
 
 
-# ==========================
-# Usuarios: editar
-# ==========================
 @login_required
 def usuarios_editar(request, perfil_id):
     if not _es_admin_equipo(request.user):
@@ -249,7 +230,6 @@ def usuarios_editar(request, perfil_id):
         segundo_nombre=perfil.segundo_nombre,
         apellido_paterno=perfil.apellido_paterno,
         apellido_materno=perfil.apellido_materno,
-        # Prefill de jugador
         fecha_nacimiento=getattr(getattr(perfil, "jugador", None), "fecha_nacimiento", None),
         tipo_sangre=getattr(getattr(perfil, "jugador", None), "tipo_sangre", "") or "",
         equipo=getattr(getattr(perfil, "jugador", None), "equipo", None),
@@ -265,14 +245,12 @@ def usuarios_editar(request, perfil_id):
     if request.method == "POST" and form.is_valid():
         cd = form.cleaned_data
 
-        # 1) User
         perfil.user.username = cd["username"]
         perfil.user.email = cd.get("email") or ""
         if cd.get("password1"):
             perfil.user.set_password(cd["password1"])
         perfil.user.save()
 
-        # 2) Perfil
         perfil.tipo = cd["tipo"]
         perfil.run = cd["run"]
         perfil.telefono = cd.get("telefono") or ""
@@ -282,14 +260,13 @@ def usuarios_editar(request, perfil_id):
         perfil.apellido_materno = cd["apellido_materno"]
         perfil.save()
 
-        # 3) Jugador: crear/actualizar o eliminar según tipo (equipo opcional)
         if cd["tipo"] == PerfilTipo.JUGADOR:
             Jugador.objects.update_or_create(
                 perfil=perfil,
                 defaults={
                     "fecha_nacimiento": cd.get("fecha_nacimiento"),
                     "tipo_sangre": cd.get("tipo_sangre") or None,
-                    "equipo": cd.get("equipo") or None,  # opcional
+                    "equipo": cd.get("equipo") or None,
                 }
             )
         else:
@@ -301,9 +278,6 @@ def usuarios_editar(request, perfil_id):
     return render(request, "usuarios/form.html", {"form": form, "modo": "editar", "perfil": perfil})
 
 
-# ==========================
-# Usuarios: habilitar / deshabilitar
-# ==========================
 @login_required
 def usuarios_toggle(request, perfil_id):
     if request.method != "POST":
@@ -315,7 +289,6 @@ def usuarios_toggle(request, perfil_id):
 
     perfil = get_object_or_404(Perfil.objects.select_related("user"), id=perfil_id)
 
-    # Evita deshabilitar tu propia cuenta
     if perfil.user_id == request.user.id:
         messages.warning(request, "No puedes deshabilitar tu propia cuenta.")
         return redirect("usuarios_lista")
@@ -330,8 +303,9 @@ def usuarios_toggle(request, perfil_id):
 
     return redirect("usuarios_lista")
 
+
 # ==========================
-# Jugadores: lista / búsqueda
+# Jugadores
 # ==========================
 @login_required
 def jugadores_lista(request):
@@ -340,6 +314,7 @@ def jugadores_lista(request):
         return redirect("dashboard")
 
     q = (request.GET.get("q") or "").strip()
+    estado = request.GET.get("estado", "")  # ✅ Filtro de estado
 
     qs = (Jugador.objects
           .select_related("perfil__user", "equipo__categoria", "equipo__entrenador")
@@ -357,14 +332,17 @@ def jugadores_lista(request):
             Q(equipo__categoria__slug__icontains=q)
         )
 
+    # ✅ Filtro por estado
+    if estado == "activo":
+        qs = qs.filter(activo=True, perfil__user__is_active=True)
+    elif estado == "inactivo":
+        qs = qs.filter(Q(activo=False) | Q(perfil__user__is_active=False))
+
     paginator = Paginator(qs, 10)
     page_obj = paginator.get_page(request.GET.get("page"))
-    return render(request, "jugadores/lista.html", {"page_obj": page_obj, "q": q})
+    return render(request, "jugadores/lista.html", {"page_obj": page_obj, "q": q, "estado": estado})
 
 
-# ==========================
-# Jugadores: editar
-# ==========================
 @login_required
 def jugadores_editar(request, jugador_id):
     if not _es_admin_equipo(request.user):
@@ -380,7 +358,7 @@ def jugadores_editar(request, jugador_id):
     initial = dict(
         username=perfil.user.username,
         email=perfil.user.email,
-        tipo=PerfilTipo.JUGADOR,  # Forzar tipo JUGADOR
+        tipo=PerfilTipo.JUGADOR,
         run=perfil.run,
         telefono=perfil.telefono,
         primer_nombre=perfil.primer_nombre,
@@ -399,61 +377,39 @@ def jugadores_editar(request, jugador_id):
         perfil_obj=perfil,
     )
     
-    # Deshabilitar el campo tipo para que no se pueda cambiar
     if 'tipo' in form.fields:
         form.fields['tipo'].disabled = True
         form.fields['tipo'].widget.attrs['readonly'] = True
 
-    if request.method == "POST":
-        # Debug: ver qué datos llegan
-        print("POST data:", request.POST)
-        print("Form errors:", form.errors)
-        
-        if form.is_valid():
-            cd = form.cleaned_data
-            
-            # Debug: ver datos limpios
-            print("Cleaned data:", cd)
+    if request.method == "POST" and form.is_valid():
+        cd = form.cleaned_data
 
-            # 1) User
-            perfil.user.username = cd["username"]
-            perfil.user.email = cd.get("email") or ""
-            if cd.get("password1"):
-                perfil.user.set_password(cd["password1"])
-            perfil.user.save()
+        perfil.user.username = cd["username"]
+        perfil.user.email = cd.get("email") or ""
+        if cd.get("password1"):
+            perfil.user.set_password(cd["password1"])
+        perfil.user.save()
 
-            # 2) Perfil (mantener tipo JUGADOR siempre)
-            perfil.tipo = PerfilTipo.JUGADOR  # Forzar tipo
-            perfil.run = cd["run"]
-            perfil.telefono = cd.get("telefono") or ""
-            perfil.primer_nombre = cd["primer_nombre"]
-            perfil.segundo_nombre = cd.get("segundo_nombre") or ""
-            perfil.apellido_paterno = cd["apellido_paterno"]
-            perfil.apellido_materno = cd["apellido_materno"]
-            perfil.save()
+        perfil.tipo = PerfilTipo.JUGADOR
+        perfil.run = cd["run"]
+        perfil.telefono = cd.get("telefono") or ""
+        perfil.primer_nombre = cd["primer_nombre"]
+        perfil.segundo_nombre = cd.get("segundo_nombre") or ""
+        perfil.apellido_paterno = cd["apellido_paterno"]
+        perfil.apellido_materno = cd["apellido_materno"]
+        perfil.save()
 
-            # 3) Jugador
-            jugador.fecha_nacimiento = cd.get("fecha_nacimiento")
-            jugador.tipo_sangre = cd.get("tipo_sangre") or None
-            jugador.equipo = cd.get("equipo")
-            jugador.save()
+        jugador.fecha_nacimiento = cd.get("fecha_nacimiento")
+        jugador.tipo_sangre = cd.get("tipo_sangre") or None
+        jugador.equipo = cd.get("equipo")
+        jugador.save()
 
-            messages.success(request, f"Jugador '{perfil.nombre_completo}' actualizado correctamente.")
-            return redirect("jugadores_lista")
-        else:
-            # Si hay errores, mostrarlos
-            messages.error(request, "Por favor corrige los errores en el formulario.")
+        messages.success(request, f"Jugador '{perfil.nombre_completo}' actualizado correctamente.")
+        return redirect("jugadores_lista")
 
-    return render(request, "jugadores/form.html", {
-        "form": form,
-        "modo": "editar",
-        "jugador": jugador
-    })
+    return render(request, "jugadores/form.html", {"form": form, "modo": "editar", "jugador": jugador})
 
 
-# ==========================
-# Jugadores: habilitar / deshabilitar
-# ==========================
 @login_required
 def jugadores_toggle(request, jugador_id):
     if request.method != "POST":
@@ -468,11 +424,9 @@ def jugadores_toggle(request, jugador_id):
         id=jugador_id
     )
 
-    # Cambiar estado activo del jugador
     jugador.activo = not jugador.activo
     jugador.save(update_fields=["activo"])
 
-    # También deshabilitar/habilitar la cuenta de usuario
     jugador.perfil.user.is_active = jugador.activo
     jugador.perfil.user.save(update_fields=["is_active"])
 
@@ -483,8 +437,9 @@ def jugadores_toggle(request, jugador_id):
 
     return redirect("jugadores_lista")
 
+
 # ==========================
-# Entrenadores: lista / búsqueda
+# Entrenadores
 # ==========================
 @login_required
 def entrenadores_lista(request):
@@ -493,8 +448,8 @@ def entrenadores_lista(request):
         return redirect("dashboard")
 
     q = (request.GET.get("q") or "").strip()
+    estado = request.GET.get("estado", "")  # ✅ Filtro de estado
 
-    # Los entrenadores son Perfiles con tipo ENTRENADOR
     qs = (Perfil.objects
           .filter(tipo=PerfilTipo.ENTRENADOR)
           .select_related("user")
@@ -512,14 +467,18 @@ def entrenadores_lista(request):
             Q(run__icontains=q)
         )
 
+    # ✅ Filtro por estado
+    if estado == "activo":
+        qs = qs.filter(user__is_active=True)
+    elif estado == "inactivo":
+        qs = qs.filter(user__is_active=False)
+
     paginator = Paginator(qs, 10)
     page_obj = paginator.get_page(request.GET.get("page"))
-    return render(request, "entrenadores/lista.html", {"page_obj": page_obj, "q": q})
+    
+    return render(request, "entrenadores/lista.html", {"page_obj": page_obj, "q": q, "estado": estado})
 
 
-# ==========================
-# Entrenadores: editar
-# ==========================
 @login_required
 def entrenadores_editar(request, perfil_id):
     if not _es_admin_equipo(request.user):
@@ -550,7 +509,6 @@ def entrenadores_editar(request, perfil_id):
         perfil_obj=perfil,
     )
     
-    # Deshabilitar el campo tipo para que no se pueda cambiar
     if 'tipo' in form.fields:
         form.fields['tipo'].disabled = True
         form.fields['tipo'].widget.attrs['readonly'] = True
@@ -558,14 +516,12 @@ def entrenadores_editar(request, perfil_id):
     if request.method == "POST" and form.is_valid():
         cd = form.cleaned_data
 
-        # 1) User
         perfil.user.username = cd["username"]
         perfil.user.email = cd.get("email") or ""
         if cd.get("password1"):
             perfil.user.set_password(cd["password1"])
         perfil.user.save()
 
-        # 2) Perfil (mantener tipo ENTRENADOR)
         perfil.tipo = PerfilTipo.ENTRENADOR
         perfil.run = cd["run"]
         perfil.telefono = cd.get("telefono") or ""
@@ -578,16 +534,9 @@ def entrenadores_editar(request, perfil_id):
         messages.success(request, f"Entrenador '{perfil.nombre_completo}' actualizado correctamente.")
         return redirect("entrenadores_lista")
 
-    return render(request, "entrenadores/form.html", {
-        "form": form,
-        "modo": "editar",
-        "perfil": perfil
-    })
+    return render(request, "entrenadores/form.html", {"form": form, "modo": "editar", "perfil": perfil})
 
 
-# ==========================
-# Entrenadores: habilitar / deshabilitar
-# ==========================
 @login_required
 def entrenadores_toggle(request, perfil_id):
     if request.method != "POST":
@@ -602,7 +551,6 @@ def entrenadores_toggle(request, perfil_id):
         id=perfil_id
     )
 
-    # Evita deshabilitar tu propia cuenta
     if perfil.user_id == request.user.id:
         messages.warning(request, "No puedes deshabilitar tu propia cuenta.")
         return redirect("entrenadores_lista")
@@ -618,12 +566,12 @@ def entrenadores_toggle(request, perfil_id):
     return redirect("entrenadores_lista")
 
 
-
 # ==========================
-# Equipos: lista / búsqueda
+# Equipos
 # ==========================
 @login_required
 def equipos_lista(request):
+    """✅ FUNCIÓN CORREGIDA"""
     if not _es_admin_equipo(request.user):
         messages.error(request, "No tienes permisos para ver equipos.")
         return redirect("dashboard")
@@ -649,9 +597,6 @@ def equipos_lista(request):
     return render(request, "equipos/lista.html", {"page_obj": page_obj, "q": q})
 
 
-# ==========================
-# Equipos: crear
-# ==========================
 @login_required
 def equipos_crear(request):
     if not _es_admin_equipo(request.user):
@@ -665,7 +610,6 @@ def equipos_crear(request):
         categoria_id = request.POST.get("categoria")
         entrenador_id = request.POST.get("entrenador")
 
-        # Validaciones
         if not nombre:
             messages.error(request, "El nombre del equipo es obligatorio.")
         elif not categoria_id:
@@ -677,7 +621,6 @@ def equipos_crear(request):
                 categoria = Categoria.objects.get(pk=categoria_id)
                 entrenador = Perfil.objects.get(pk=entrenador_id, tipo=PerfilTipo.ENTRENADOR)
                 
-                # Verificar duplicados
                 if Equipo.objects.filter(nombre=nombre, categoria=categoria).exists():
                     messages.error(request, f"Ya existe un equipo '{nombre}' en la categoría '{categoria}'.")
                 else:
@@ -691,7 +634,6 @@ def equipos_crear(request):
             except (Categoria.DoesNotExist, Perfil.DoesNotExist):
                 messages.error(request, "Categoría o entrenador inválido.")
 
-    # Obtener datos para el formulario
     categorias = Categoria.objects.all().order_by("slug")
     entrenadores = Perfil.objects.filter(tipo=PerfilTipo.ENTRENADOR, user__is_active=True).order_by("apellido_paterno", "primer_nombre")
 
@@ -702,9 +644,6 @@ def equipos_crear(request):
     })
 
 
-# ==========================
-# Equipos: editar
-# ==========================
 @login_required
 def equipos_editar(request, equipo_id):
     if not _es_admin_equipo(request.user):
@@ -719,7 +658,6 @@ def equipos_editar(request, equipo_id):
         categoria_id = request.POST.get("categoria")
         entrenador_id = request.POST.get("entrenador")
 
-        # Validaciones
         if not nombre:
             messages.error(request, "El nombre del equipo es obligatorio.")
         elif not categoria_id:
@@ -731,7 +669,6 @@ def equipos_editar(request, equipo_id):
                 categoria = Categoria.objects.get(pk=categoria_id)
                 entrenador = Perfil.objects.get(pk=entrenador_id, tipo=PerfilTipo.ENTRENADOR)
                 
-                # Verificar duplicados (excluyendo el actual)
                 if Equipo.objects.filter(nombre=nombre, categoria=categoria).exclude(pk=equipo.pk).exists():
                     messages.error(request, f"Ya existe otro equipo '{nombre}' en la categoría '{categoria}'.")
                 else:
@@ -744,7 +681,6 @@ def equipos_editar(request, equipo_id):
             except (Categoria.DoesNotExist, Perfil.DoesNotExist):
                 messages.error(request, "Categoría o entrenador inválido.")
 
-    # Obtener datos para el formulario
     categorias = Categoria.objects.all().order_by("slug")
     entrenadores = Perfil.objects.filter(tipo=PerfilTipo.ENTRENADOR, user__is_active=True).order_by("apellido_paterno", "primer_nombre")
 
@@ -756,9 +692,6 @@ def equipos_editar(request, equipo_id):
     })
 
 
-# ==========================
-# Equipos: eliminar
-# ==========================
 @login_required
 def equipos_eliminar(request, equipo_id):
     if request.method != "POST":
@@ -770,7 +703,6 @@ def equipos_eliminar(request, equipo_id):
 
     equipo = get_object_or_404(Equipo, pk=equipo_id)
     
-    # Verificar si tiene jugadores asignados
     num_jugadores = equipo.jugadores.count()
     if num_jugadores > 0:
         messages.warning(request, f"No se puede eliminar el equipo '{equipo.nombre}' porque tiene {num_jugadores} jugador(es) asignado(s).")
@@ -782,9 +714,6 @@ def equipos_eliminar(request, equipo_id):
     return redirect("equipos_lista")
 
 
-# ==========================
-# Equipos: detalle (ver jugadores)
-# ==========================
 @login_required
 def equipos_detalle(request, equipo_id):
     if not _es_admin_equipo(request.user):
@@ -807,7 +736,7 @@ def equipos_detalle(request, equipo_id):
 
 
 # ==========================
-# Actividades Deportivas: lista / búsqueda
+# Actividades Deportivas
 # ==========================
 @login_required
 def actividades_lista(request):
@@ -844,9 +773,6 @@ def actividades_lista(request):
     })
 
 
-# ==========================
-# Actividades Deportivas: crear
-# ==========================
 @login_required
 def actividades_crear(request):
     if not _es_admin_equipo(request.user):
@@ -864,7 +790,6 @@ def actividades_crear(request):
         descripcion = request.POST.get("descripcion", "").strip()
         equipos_ids = request.POST.getlist("equipos")
 
-        # Validaciones
         if not titulo:
             messages.error(request, "El título es obligatorio.")
         elif not tipo:
@@ -875,14 +800,12 @@ def actividades_crear(request):
             messages.error(request, "Debes seleccionar al menos un equipo.")
         else:
             try:
-                # Convertir fechas
                 fecha_inicio_obj = datetime.strptime(fecha_inicio, "%Y-%m-%d").date()
                 fecha_fin_obj = datetime.strptime(fecha_fin, "%Y-%m-%d").date()
 
                 if fecha_fin_obj < fecha_inicio_obj:
                     messages.error(request, "La fecha de fin no puede ser anterior a la fecha de inicio.")
                 else:
-                    # Crear actividad
                     actividad = ActividadDeportiva.objects.create(
                         titulo=titulo,
                         tipo=tipo,
@@ -891,7 +814,6 @@ def actividades_crear(request):
                         descripcion=descripcion
                     )
 
-                    # Asociar equipos
                     equipos = Equipo.objects.filter(id__in=equipos_ids)
                     actividad.equipos.set(equipos)
 
@@ -903,7 +825,6 @@ def actividades_crear(request):
             except Exception as e:
                 messages.error(request, f"Error al crear la actividad: {str(e)}")
 
-    # Obtener datos para el formulario
     equipos = Equipo.objects.select_related("categoria").order_by("categoria__slug", "nombre")
     tipos = ActividadTipo.choices
 
@@ -914,9 +835,6 @@ def actividades_crear(request):
     })
 
 
-# ==========================
-# Actividades Deportivas: editar
-# ==========================
 @login_required
 def actividades_editar(request, actividad_id):
     if not _es_admin_equipo(request.user):
@@ -939,7 +857,6 @@ def actividades_editar(request, actividad_id):
         descripcion = request.POST.get("descripcion", "").strip()
         equipos_ids = request.POST.getlist("equipos")
 
-        # Validaciones
         if not titulo:
             messages.error(request, "El título es obligatorio.")
         elif not tipo:
@@ -950,14 +867,12 @@ def actividades_editar(request, actividad_id):
             messages.error(request, "Debes seleccionar al menos un equipo.")
         else:
             try:
-                # Convertir fechas
                 fecha_inicio_obj = datetime.strptime(fecha_inicio, "%Y-%m-%d").date()
                 fecha_fin_obj = datetime.strptime(fecha_fin, "%Y-%m-%d").date()
 
                 if fecha_fin_obj < fecha_inicio_obj:
                     messages.error(request, "La fecha de fin no puede ser anterior a la fecha de inicio.")
                 else:
-                    # Actualizar actividad
                     actividad.titulo = titulo
                     actividad.tipo = tipo
                     actividad.fecha_inicio = fecha_inicio_obj
@@ -965,7 +880,6 @@ def actividades_editar(request, actividad_id):
                     actividad.descripcion = descripcion
                     actividad.save()
 
-                    # Actualizar equipos
                     equipos = Equipo.objects.filter(id__in=equipos_ids)
                     actividad.equipos.set(equipos)
 
@@ -977,7 +891,6 @@ def actividades_editar(request, actividad_id):
             except Exception as e:
                 messages.error(request, f"Error al actualizar la actividad: {str(e)}")
 
-    # Obtener datos para el formulario
     equipos = Equipo.objects.select_related("categoria").order_by("categoria__slug", "nombre")
     tipos = ActividadTipo.choices
     equipos_seleccionados = list(actividad.equipos.values_list("id", flat=True))
@@ -991,9 +904,6 @@ def actividades_editar(request, actividad_id):
     })
 
 
-# ==========================
-# Actividades Deportivas: eliminar
-# ==========================
 @login_required
 def actividades_eliminar(request, actividad_id):
     if request.method != "POST":
@@ -1005,7 +915,6 @@ def actividades_eliminar(request, actividad_id):
 
     actividad = get_object_or_404(ActividadDeportiva, pk=actividad_id)
     
-    # Verificar si tiene asistencias registradas
     from .models import Asistencia
     num_asistencias = Asistencia.objects.filter(actividad=actividad).count()
     
@@ -1019,9 +928,6 @@ def actividades_eliminar(request, actividad_id):
     return redirect("actividades_lista")
 
 
-# ==========================
-# Actividades Deportivas: detalle
-# ==========================
 @login_required
 def actividades_detalle(request, actividad_id):
     if not _es_admin_equipo(request.user):
@@ -1036,7 +942,6 @@ def actividades_detalle(request, actividad_id):
         pk=actividad_id
     )
 
-    # Obtener todos los jugadores de los equipos participantes
     jugadores_totales = []
     for equipo in actividad.equipos.all():
         jugadores = equipo.jugadores.filter(activo=True).select_related("perfil")
@@ -1049,11 +954,10 @@ def actividades_detalle(request, actividad_id):
 
 
 # ==========================
-# Asistencias: lista / búsqueda
+# Asistencias
 # ==========================
 @login_required
 def asistencias_lista(request):
-    # Permisos: Admin, Equipo Admin o Entrenador
     perfil = getattr(request.user, "perfil", None)
     es_entrenador = perfil and perfil.tipo == PerfilTipo.ENTRENADOR
     
@@ -1071,7 +975,6 @@ def asistencias_lista(request):
           .select_related("jugador__perfil", "jugador__equipo", "actividad", "entrenador")
           .order_by("-fecha_hora_marcaje"))
 
-    # Si es entrenador, solo ver sus propias asistencias
     if es_entrenador and not request.user.is_superuser:
         qs = qs.filter(entrenador=perfil)
 
@@ -1092,7 +995,6 @@ def asistencias_lista(request):
     paginator = Paginator(qs, 15)
     page_obj = paginator.get_page(request.GET.get("page"))
     
-    # Para los filtros
     actividades = ActividadDeportiva.objects.order_by("-fecha_inicio")[:50]
     
     return render(request, "asistencias/lista.html", {
@@ -1105,9 +1007,6 @@ def asistencias_lista(request):
     })
 
 
-# ==========================
-# Asistencias: registrar (por actividad)
-# ==========================
 @login_required
 def asistencias_registrar(request):
     perfil = getattr(request.user, "perfil", None)
@@ -1126,7 +1025,6 @@ def asistencias_registrar(request):
         jugadores_presentes = request.POST.getlist("presentes")
         jugadores_ausentes = request.POST.getlist("ausentes")
 
-        # Validaciones
         if not actividad_id:
             messages.error(request, "Debes seleccionar una actividad.")
         elif not fecha_hora_marcaje:
@@ -1136,11 +1034,9 @@ def asistencias_registrar(request):
                 actividad = ActividadDeportiva.objects.get(pk=actividad_id)
                 fecha_hora_obj = datetime.strptime(fecha_hora_marcaje, "%Y-%m-%dT%H:%M")
 
-                # Validar que la fecha esté dentro del rango de la actividad
                 if not (actividad.fecha_inicio <= fecha_hora_obj.date() <= actividad.fecha_fin):
                     messages.error(request, "La fecha/hora de marcaje debe estar dentro del rango de la actividad.")
                 else:
-                    # Determinar el entrenador que registra
                     if es_entrenador and not request.user.is_superuser:
                         entrenador_perfil = perfil
                     else:
@@ -1153,7 +1049,6 @@ def asistencias_registrar(request):
                     registros_creados = 0
                     registros_actualizados = 0
 
-                    # Registrar presentes
                     for jugador_id in jugadores_presentes:
                         jugador = Jugador.objects.get(pk=jugador_id)
                         asistencia, created = Asistencia.objects.update_or_create(
@@ -1170,7 +1065,6 @@ def asistencias_registrar(request):
                         else:
                             registros_actualizados += 1
 
-                    # Registrar ausentes
                     for jugador_id in jugadores_ausentes:
                         jugador = Jugador.objects.get(pk=jugador_id)
                         asistencia, created = Asistencia.objects.update_or_create(
@@ -1201,7 +1095,6 @@ def asistencias_registrar(request):
             except Exception as e:
                 messages.error(request, f"Error al registrar asistencias: {str(e)}")
 
-    # GET: Mostrar formulario
     from datetime import date
     actividades = ActividadDeportiva.objects.filter(
         fecha_fin__gte=date.today()
@@ -1214,9 +1107,8 @@ def asistencias_registrar(request):
             user__is_active=True
         ).order_by("apellido_paterno", "primer_nombre")
 
-    # Obtener hora actual UTC y convertir a Chile (UTC-3)
     ahora_utc = datetime.utcnow()
-    ahora_chile = ahora_utc - timedelta(hours=3)  # Chile está en UTC-3
+    ahora_chile = ahora_utc - timedelta(hours=3)
     fecha_hora_actual = ahora_chile.strftime('%Y-%m-%dT%H:%M')
 
     return render(request, "asistencias/registrar.html", {
@@ -1226,21 +1118,16 @@ def asistencias_registrar(request):
         "fecha_hora_actual": fecha_hora_actual
     })
 
-# ==========================
-# Asistencias: obtener jugadores de actividad (AJAX)
-# ==========================
+
 @login_required
 def asistencias_jugadores_actividad(request, actividad_id):
-    """Endpoint para obtener jugadores de una actividad (para el formulario de registro)"""
     try:
         actividad = ActividadDeportiva.objects.get(pk=actividad_id)
         
-        # Obtener todos los jugadores de los equipos participantes
         jugadores_list = []
         for equipo in actividad.equipos.all():
             jugadores = equipo.jugadores.filter(activo=True).select_related("perfil")
             for jugador in jugadores:
-                # Verificar si ya tiene asistencia registrada
                 asistencia_existente = None
                 try:
                     from .models import Asistencia
@@ -1266,9 +1153,6 @@ def asistencias_jugadores_actividad(request, actividad_id):
         return JsonResponse({"error": "Actividad no encontrada"}, status=404)
 
 
-# ==========================
-# Asistencias: editar
-# ==========================
 @login_required
 def asistencias_editar(request, asistencia_id):
     perfil = getattr(request.user, "perfil", None)
@@ -1286,7 +1170,6 @@ def asistencias_editar(request, asistencia_id):
         pk=asistencia_id
     )
 
-    # Validar que el entrenador solo pueda editar sus propias asistencias
     if es_entrenador and not request.user.is_superuser:
         if asistencia.entrenador != perfil:
             messages.error(request, "Solo puedes editar tus propias asistencias.")
@@ -1302,7 +1185,6 @@ def asistencias_editar(request, asistencia_id):
             try:
                 fecha_hora_obj = datetime.strptime(fecha_hora_marcaje, "%Y-%m-%dT%H:%M")
 
-                # Validar que la fecha esté dentro del rango de la actividad
                 if not (asistencia.actividad.fecha_inicio <= fecha_hora_obj.date() <= asistencia.actividad.fecha_fin):
                     messages.error(request, "La fecha/hora de marcaje debe estar dentro del rango de la actividad.")
                 else:
@@ -1323,9 +1205,6 @@ def asistencias_editar(request, asistencia_id):
     })
 
 
-# ==========================
-# Asistencias: eliminar
-# ==========================
 @login_required
 def asistencias_eliminar(request, asistencia_id):
     if request.method != "POST":
@@ -1341,7 +1220,6 @@ def asistencias_eliminar(request, asistencia_id):
     from .models import Asistencia
     asistencia = get_object_or_404(Asistencia, pk=asistencia_id)
 
-    # Validar que el entrenador solo pueda eliminar sus propias asistencias
     if es_entrenador and not request.user.is_superuser:
         if asistencia.entrenador != perfil:
             messages.error(request, "Solo puedes eliminar tus propias asistencias.")

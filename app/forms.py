@@ -1,9 +1,12 @@
-# app/forms.py
+import re
+from datetime import date
 from django import forms
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from .models import Perfil, PerfilTipo, Equipo
 
 User = get_user_model()
+
 
 class UsuarioCrearForm(forms.Form):
     username = forms.CharField(
@@ -19,6 +22,7 @@ class UsuarioCrearForm(forms.Form):
     password1 = forms.CharField(
         label="Contraseña",
         widget=forms.PasswordInput(attrs={"class": "form-control", "placeholder": "Contraseña"}),
+        help_text="Mínimo 8 caracteres con mayúsculas, minúsculas, números y caracteres especiales.",
     )
     password2 = forms.CharField(
         label="Confirmar contraseña",
@@ -68,7 +72,8 @@ class UsuarioCrearForm(forms.Form):
     fecha_nacimiento = forms.DateField(
         label="Fecha de nacimiento",
         required=False,
-        widget=forms.DateInput(attrs={"type": "date", "class": "form-control"})
+        widget=forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+        help_text="Requerido para jugadores. Se validará según la categoría del equipo."
     )
     tipo_sangre = forms.ChoiceField(
         label="Tipo de sangre",
@@ -82,8 +87,59 @@ class UsuarioCrearForm(forms.Form):
         label="Equipo",
         queryset=Equipo.objects.all().order_by("categoria__slug", "nombre"),
         required=False,
-        widget=forms.Select(attrs={"class": "form-select"})
+        widget=forms.Select(attrs={"class": "form-select"}),
+        help_text="Opcional. Si se asigna, la edad debe coincidir con la categoría."
     )
+
+    # === MÉTODO AUXILIAR PARA CALCULAR EDAD ===
+    def calcular_edad(self, fecha_nacimiento):
+        """Calcula la edad en años a partir de la fecha de nacimiento."""
+        hoy = date.today()
+        edad = hoy.year - fecha_nacimiento.year
+        # Ajustar si aún no ha cumplido años este año
+        if (hoy.month, hoy.day) < (fecha_nacimiento.month, fecha_nacimiento.day):
+            edad -= 1
+        return edad
+
+    # === MÉTODO AUXILIAR PARA VALIDAR EDAD-CATEGORÍA ===
+    def validar_edad_categoria(self, fecha_nacimiento, equipo):
+        """
+        Valida que la edad del jugador sea coherente con la categoría del equipo.
+        
+        Reglas:
+        - Sub-14: jugadores menores de 14 años
+        - Sub-16: jugadores menores de 16 años
+        - Sub-18: jugadores menores de 18 años
+        """
+        if not fecha_nacimiento or not equipo:
+            return None  # No validar si falta información
+        
+        edad = self.calcular_edad(fecha_nacimiento)
+        categoria_slug = equipo.categoria.slug.lower()
+        
+        # Extraer el número de la categoría (ej: "sub-14" -> 14)
+        if 'sub-14' in categoria_slug or 'sub14' in categoria_slug:
+            edad_maxima = 14
+            nombre_categoria = "Sub-14"
+        elif 'sub-16' in categoria_slug or 'sub16' in categoria_slug:
+            edad_maxima = 16
+            nombre_categoria = "Sub-16"
+        elif 'sub-18' in categoria_slug or 'sub18' in categoria_slug:
+            edad_maxima = 18
+            nombre_categoria = "Sub-18"
+        else:
+            # Si la categoría no tiene restricción de edad, no validar
+            return None
+        
+        # Validar edad
+        if edad >= edad_maxima:
+            raise ValidationError(
+                f"El jugador tiene {edad} años. No puede estar en la categoría {nombre_categoria} "
+                f"(edad máxima: {edad_maxima - 1} años). "
+                f"Por favor, selecciona un equipo de categoría superior o verifica la fecha de nacimiento."
+            )
+        
+        return edad
 
     # === VALIDACIONES ===
     def clean_username(self):
@@ -98,13 +154,89 @@ class UsuarioCrearForm(forms.Form):
             raise forms.ValidationError("Ese correo ya está en uso.")
         return e
 
+    def clean_password1(self):
+        """✅ VALIDACIÓN DE COMPLEJIDAD DE CONTRASEÑA"""
+        password = self.cleaned_data.get('password1')
+        
+        if not password:
+            return password
+        
+        errores = []
+        
+        if len(password) < 8:
+            errores.append("La contraseña debe tener al menos 8 caracteres.")
+        
+        if not re.search(r'[A-Z]', password):
+            errores.append("Debe contener al menos una letra MAYÚSCULA.")
+        
+        if not re.search(r'[a-z]', password):
+            errores.append("Debe contener al menos una letra minúscula.")
+        
+        if not re.search(r'\d', password):
+            errores.append("Debe contener al menos un número.")
+        
+        if not re.search(r'[!@#$%^&*()_+\-=\[\]{}|;:,.<>?]', password):
+            errores.append("Debe contener al menos un carácter especial (!@#$%^&*...).")
+        
+        if ' ' in password:
+            errores.append("No puede contener espacios en blanco.")
+        
+        username = self.cleaned_data.get('username', '').lower()
+        email = self.cleaned_data.get('email', '').lower()
+        password_lower = password.lower()
+        
+        if username and username in password_lower:
+            errores.append("No puede ser similar a tu nombre de usuario.")
+        
+        if email and email.split('@')[0] in password_lower:
+            errores.append("No puede ser similar a tu correo electrónico.")
+        
+        primer_nombre = self.cleaned_data.get('primer_nombre', '').lower()
+        apellido_paterno = self.cleaned_data.get('apellido_paterno', '').lower()
+        
+        if primer_nombre and len(primer_nombre) > 3 and primer_nombre in password_lower:
+            errores.append("No puede contener tu nombre.")
+        
+        if apellido_paterno and len(apellido_paterno) > 3 and apellido_paterno in password_lower:
+            errores.append("No puede contener tu apellido.")
+        
+        if errores:
+            raise forms.ValidationError(errores)
+        
+        return password
+
     def clean(self):
         cd = super().clean()
         p1, p2 = cd.get("password1"), cd.get("password2")
+        
+        # Validar coincidencia de contraseñas
         if p1 and p2 and p1 != p2:
             self.add_error("password2", "Las contraseñas no coinciden.")
+        
+        # Validar RUN único
         if cd.get("run") and Perfil.objects.filter(run=cd["run"]).exists():
             self.add_error("run", "Ese RUN ya está registrado.")
+        
+        # ✅ VALIDAR EDAD-CATEGORÍA (solo para jugadores)
+        tipo = cd.get("tipo")
+        if tipo == PerfilTipo.JUGADOR:
+            fecha_nacimiento = cd.get("fecha_nacimiento")
+            equipo = cd.get("equipo")
+            
+            # Fecha de nacimiento es obligatoria para jugadores
+            if not fecha_nacimiento:
+                self.add_error("fecha_nacimiento", "La fecha de nacimiento es obligatoria para jugadores.")
+            
+            # Si hay equipo y fecha, validar coherencia
+            if fecha_nacimiento and equipo:
+                try:
+                    edad = self.validar_edad_categoria(fecha_nacimiento, equipo)
+                    # Guardar la edad calculada para referencia
+                    cd['edad_calculada'] = edad
+                except ValidationError as e:
+                    self.add_error("fecha_nacimiento", e.message)
+                    self.add_error("equipo", "La categoría del equipo no es apropiada para la edad del jugador.")
+        
         return cd
 
 
@@ -113,7 +245,8 @@ class UsuarioEditarForm(UsuarioCrearForm):
     password1 = forms.CharField(
         label="Nueva contraseña",
         required=False,
-        widget=forms.PasswordInput(attrs={"class": "form-control", "placeholder": "Nueva contraseña"}),
+        widget=forms.PasswordInput(attrs={"class": "form-control", "placeholder": "Nueva contraseña (opcional)"}),
+        help_text="Déjalo en blanco si no deseas cambiarla. Mínimo 8 caracteres con mayúsculas, minúsculas, números y caracteres especiales.",
     )
     password2 = forms.CharField(
         label="Confirmar nueva contraseña",
@@ -128,7 +261,6 @@ class UsuarioEditarForm(UsuarioCrearForm):
 
     def clean_username(self):
         u = self.cleaned_data["username"]
-        # ✅ Protección: verifica que user_obj exista antes de usar .pk
         if self.user_obj and User.objects.filter(username=u).exclude(pk=self.user_obj.pk).exists():
             raise forms.ValidationError("Ese nombre de usuario ya existe.")
         elif not self.user_obj and User.objects.filter(username=u).exists():
@@ -138,25 +270,100 @@ class UsuarioEditarForm(UsuarioCrearForm):
     def clean_email(self):
         e = self.cleaned_data.get("email")
         if e:
-            # ✅ Protección: verifica que user_obj exista antes de usar .pk
             if self.user_obj and User.objects.filter(email=e).exclude(pk=self.user_obj.pk).exists():
                 raise forms.ValidationError("Ese correo ya está en uso.")
             elif not self.user_obj and User.objects.filter(email=e).exists():
                 raise forms.ValidationError("Ese correo ya está en uso.")
         return e
 
+    def clean_password1(self):
+        """✅ VALIDACIÓN DE COMPLEJIDAD - SOLO SI SE PROPORCIONA CONTRASEÑA"""
+        password = self.cleaned_data.get('password1')
+        
+        if not password:
+            return password
+        
+        errores = []
+        
+        if len(password) < 8:
+            errores.append("La contraseña debe tener al menos 8 caracteres.")
+        
+        if not re.search(r'[A-Z]', password):
+            errores.append("Debe contener al menos una letra MAYÚSCULA.")
+        
+        if not re.search(r'[a-z]', password):
+            errores.append("Debe contener al menos una letra minúscula.")
+        
+        if not re.search(r'\d', password):
+            errores.append("Debe contener al menos un número.")
+        
+        if not re.search(r'[!@#$%^&*()_+\-=\[\]{}|;:,.<>?]', password):
+            errores.append("Debe contener al menos un carácter especial (!@#$%^&*...).")
+        
+        if ' ' in password:
+            errores.append("No puede contener espacios en blanco.")
+        
+        username = self.cleaned_data.get('username', '').lower()
+        email = self.cleaned_data.get('email', '').lower()
+        password_lower = password.lower()
+        
+        if username and username in password_lower:
+            errores.append("No puede ser similar a tu nombre de usuario.")
+        
+        if email and email.split('@')[0] in password_lower:
+            errores.append("No puede ser similar a tu correo electrónico.")
+        
+        primer_nombre = self.cleaned_data.get('primer_nombre', '').lower()
+        apellido_paterno = self.cleaned_data.get('apellido_paterno', '').lower()
+        
+        if primer_nombre and len(primer_nombre) > 3 and primer_nombre in password_lower:
+            errores.append("No puede contener tu nombre.")
+        
+        if apellido_paterno and len(apellido_paterno) > 3 and apellido_paterno in password_lower:
+            errores.append("No puede contener tu apellido.")
+        
+        if errores:
+            raise forms.ValidationError(errores)
+        
+        return password
+
     def clean(self):
-        cd = super(UsuarioCrearForm, self).clean()  # ⚠️ Saltamos UsuarioCrearForm.clean() para evitar duplicación
+        cd = super(UsuarioCrearForm, self).clean()
         p1, p2 = cd.get("password1"), cd.get("password2")
+        
+        # Solo validar contraseñas si se proporcionó
         if p1 or p2:
             if p1 != p2:
                 self.add_error("password2", "Las contraseñas no coinciden.")
         
-        # ✅ Protección: verifica que perfil_obj exista antes de usar .pk
+        # Validar RUN único (excluyendo el actual)
         if cd.get("run"):
             if self.perfil_obj and Perfil.objects.filter(run=cd["run"]).exclude(pk=self.perfil_obj.pk).exists():
                 self.add_error("run", "Ese RUN ya está registrado.")
             elif not self.perfil_obj and Perfil.objects.filter(run=cd["run"]).exists():
                 self.add_error("run", "Ese RUN ya está registrado.")
         
+        # ✅ VALIDAR EDAD-CATEGORÍA (solo para jugadores)
+        tipo = cd.get("tipo")
+        if tipo == PerfilTipo.JUGADOR:
+            fecha_nacimiento = cd.get("fecha_nacimiento")
+            equipo = cd.get("equipo")
+            
+            # Fecha de nacimiento es obligatoria para jugadores
+            if not fecha_nacimiento:
+                self.add_error("fecha_nacimiento", "La fecha de nacimiento es obligatoria para jugadores.")
+            
+            # Si hay equipo y fecha, validar coherencia
+            if fecha_nacimiento and equipo:
+                try:
+                    edad = self.validar_edad_categoria(fecha_nacimiento, equipo)
+                    cd['edad_calculada'] = edad
+                except ValidationError as e:
+                    self.add_error("fecha_nacimiento", e.message)
+                    self.add_error("equipo", "La categoría del equipo no es apropiada para la edad del jugador.")
+        
         return cd
+
+
+
+

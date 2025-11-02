@@ -6,26 +6,72 @@
 {% block main %}
 <div class="container-fluid">
 
-  <!-- Barra superior: búsqueda -->
-  <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+  <!-- Barra superior: búsqueda + filtro de estado -->
+  <div class="mb-3">
+    <form method="get" class="row g-2 align-items-end">
+      <!-- Búsqueda -->
+      <div class="col-md-5">
+        <label class="form-label small">Buscar</label>
+        <div class="input-group">
+          <input type="text" name="q" class="form-control"
+                 placeholder="Buscar por nombre, RUN o usuario…"
+                 value="{{ q|default:'' }}">
+          {% if q %}
+            <a href="{% url 'entrenadores_lista' %}" class="btn btn-outline-secondary">
+              <i class="bi bi-x-lg"></i>
+            </a>
+          {% endif %}
+        </div>
+      </div>
 
-    <!-- Búsqueda -->
-    <form method="get" class="flex-grow-1" style="max-width: 650px;">
-      <div class="input-group">
-        <input type="text" name="q" class="form-control"
-               placeholder="Buscar por nombre, RUN o usuario…"
-               value="{{ q|default:'' }}">
-        {% if q %}
-          <a href="{% url 'entrenadores_lista' %}" class="btn btn-outline-secondary">
-            <i class="bi bi-x-lg"></i>
-          </a>
-        {% endif %}
+      <!-- ✅ Filtro por estado -->
+      <div class="col-md-3">
+        <label class="form-label small">Estado</label>
+        <select name="estado" class="form-select">
+          <option value="">Todos</option>
+          <option value="activo" {% if estado == "activo" %}selected{% endif %}>
+            Activos
+          </option>
+          <option value="inactivo" {% if estado == "inactivo" %}selected{% endif %}>
+            Inactivos
+          </option>
+        </select>
+      </div>
+
+      <!-- Botón buscar -->
+      <div class="col-md-4 text-end">
         <button class="btn btn-primary" type="submit">
           <i class="bi bi-search"></i> Buscar
         </button>
+        
+        <!-- ✅ Botón limpiar filtros (solo si hay filtros activos) -->
+        {% if q or estado %}
+          <a href="{% url 'entrenadores_lista' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-clockwise"></i> Limpiar
+          </a>
+        {% endif %}
       </div>
     </form>
   </div>
+
+  <!-- ✅ Resumen de filtros activos -->
+  {% if estado or q %}
+    <div class="alert alert-info d-flex align-items-center mb-3">
+      <i class="bi bi-funnel me-2"></i>
+      <div class="flex-grow-1">
+        <strong>Filtros activos:</strong>
+        {% if q %}
+          <span class="badge bg-primary ms-2">Búsqueda: "{{ q }}"</span>
+        {% endif %}
+        {% if estado == "activo" %}
+          <span class="badge bg-success ms-2">Solo activos</span>
+        {% elif estado == "inactivo" %}
+          <span class="badge bg-secondary ms-2">Solo inactivos</span>
+        {% endif %}
+      </div>
+      <small class="text-muted">{{ page_obj.paginator.count }} resultado(s)</small>
+    </div>
+  {% endif %}
 
   <!-- Tabla -->
   <div class="card card-soft">
@@ -45,7 +91,7 @@
           </thead>
           <tbody>
             {% for perfil in page_obj.object_list %}
-              <tr>
+              <tr {% if not perfil.user.is_active %}class="table-secondary"{% endif %}>
                 <td class="text-nowrap">
                   <strong>{{ perfil.nombre_completo }}</strong><br>
                   <small class="text-muted">{{ perfil.user.username }}</small>
@@ -66,9 +112,13 @@
                 </td>
                 <td>
                   {% if perfil.user.is_active %}
-                    <span class="badge bg-success">Activo</span>
+                    <span class="badge bg-success">
+                      <i class="bi bi-check-circle"></i> Activo
+                    </span>
                   {% else %}
-                    <span class="badge bg-secondary">Deshabilitado</span>
+                    <span class="badge bg-secondary">
+                      <i class="bi bi-x-circle"></i> Inactivo
+                    </span>
                   {% endif %}
                 </td>
                 <td class="text-end">
@@ -93,7 +143,20 @@
                 </td>
               </tr>
             {% empty %}
-              <tr><td colspan="7" class="text-center py-4 text-muted">No se encontraron entrenadores.</td></tr>
+              <tr>
+                <td colspan="7" class="text-center py-4">
+                  <div class="text-muted">
+                    <i class="bi bi-inbox fs-1"></i>
+                    <p class="mt-2 mb-0">
+                      {% if q or estado %}
+                        No se encontraron entrenadores con los filtros aplicados.
+                      {% else %}
+                        No hay entrenadores registrados.
+                      {% endif %}
+                    </p>
+                  </div>
+                </td>
+              </tr>
             {% endfor %}
           </tbody>
         </table>
@@ -105,13 +168,14 @@
       <div class="card-footer d-flex justify-content-between align-items-center">
         <small class="text-muted">
           Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+          ({{ page_obj.paginator.count }} entrenador{% if page_obj.paginator.count != 1 %}es{% endif %})
         </small>
         <nav>
           <ul class="pagination mb-0">
 
             {% if page_obj.has_previous %}
               <li class="page-item">
-                <a class="page-link" href="?q={{ q }}&page={{ page_obj.previous_page_number }}">Anterior</a>
+                <a class="page-link" href="?q={{ q }}&estado={{ estado }}&page={{ page_obj.previous_page_number }}">Anterior</a>
               </li>
             {% else %}
               <li class="page-item disabled"><span class="page-link">Anterior</span></li>
@@ -122,13 +186,13 @@
                 <li class="page-item active"><span class="page-link">{{ i }}</span></li>
 
               {% elif i <= 2 %}
-                <li class="page-item"><a class="page-link" href="?q={{ q }}&page={{ i }}">{{ i }}</a></li>
+                <li class="page-item"><a class="page-link" href="?q={{ q }}&estado={{ estado }}&page={{ i }}">{{ i }}</a></li>
 
               {% elif i > page_obj.paginator.num_pages|add:"-2" %}
-                <li class="page-item"><a class="page-link" href="?q={{ q }}&page={{ i }}">{{ i }}</a></li>
+                <li class="page-item"><a class="page-link" href="?q={{ q }}&estado={{ estado }}&page={{ i }}">{{ i }}</a></li>
 
               {% elif i >= page_obj.number|add:"-1" and i <= page_obj.number|add:"1" %}
-                <li class="page-item"><a class="page-link" href="?q={{ q }}&page={{ i }}">{{ i }}</a></li>
+                <li class="page-item"><a class="page-link" href="?q={{ q }}&estado={{ estado }}&page={{ i }}">{{ i }}</a></li>
 
               {% elif i == 3 or i == page_obj.paginator.num_pages|add:"-2" %}
                 <li class="page-item disabled"><span class="page-link">…</span></li>
@@ -137,7 +201,7 @@
 
             {% if page_obj.has_next %}
               <li class="page-item">
-                <a class="page-link" href="?q={{ q }}&page={{ page_obj.next_page_number }}">Siguiente</a>
+                <a class="page-link" href="?q={{ q }}&estado={{ estado }}&page={{ page_obj.next_page_number }}">Siguiente</a>
               </li>
             {% else %}
               <li class="page-item disabled"><span class="page-link">Siguiente</span></li>
