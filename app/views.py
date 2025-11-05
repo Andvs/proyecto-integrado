@@ -30,36 +30,60 @@ def index(request):
 # Autenticación
 # ==========================
 def login_view(request):
+    """✅ FUNCIÓN CORREGIDA - Sin KeyError '__all__'"""
     if request.user.is_authenticated:
         return redirect("dashboard")
 
     form = AuthenticationForm(request, data=request.POST or None)
 
+    # Agregar clase form-control a todos los campos
     for name, field in form.fields.items():
         css = field.widget.attrs.get("class", "")
         field.widget.attrs["class"] = (css + " form-control").strip()
         field.widget.attrs.setdefault("placeholder", field.label)
 
+    # ✅ CORRECCIÓN: Manejar errores correctamente
     if form.is_bound and form.errors:
-        for name in form.errors.keys():
-            css = form.fields[name].widget.attrs.get("class", "")
-            if "is-invalid" not in css:
-                form.fields[name].widget.attrs["class"] = (css + " is-invalid").strip()
+        # Solo agregar is-invalid a campos con errores específicos de campo
+        for field_name in form.errors.keys():
+            # Ignorar '__all__' que son errores generales del formulario
+            if field_name != '__all__' and field_name in form.fields:
+                css = form.fields[field_name].widget.attrs.get("class", "")
+                if "is-invalid" not in css:
+                    form.fields[field_name].widget.attrs["class"] = (css + " is-invalid").strip()
 
     if request.method == "POST":
         if form.is_valid():
-            login(request, form.get_user())
-            messages.success(request, "¡Bienvenido/a!")
+            user = form.get_user()
+            login(request, user)
+            messages.success(request, f"¡Bienvenido/a {user.username}!")
+            
+            # Redirigir a la página solicitada o al dashboard
+            next_url = request.GET.get('next') or request.POST.get('next')
+            if next_url:
+                return redirect(next_url)
             return redirect("dashboard")
-        messages.error(request, "Usuario o contraseña inválidos.")
+        else:
+            # ✅ Mensajes de error mejorados
+            if '__all__' in form.errors:
+                # Error general de autenticación (credenciales incorrectas)
+                messages.error(
+                    request, 
+                    "Usuario o contraseña incorrectos. Por favor, verifica tus credenciales."
+                )
+            else:
+                # Errores específicos de campos
+                messages.error(request, "Por favor, corrige los errores en el formulario.")
 
     return render(request, "login.html", {"form": form})
 
 
 @login_required
 def logout_view(request):
+    """Cerrar sesión del usuario."""
+    username = request.user.username
     logout(request)
-    messages.info(request, "Sesión cerrada correctamente.")
+    messages.info(request, f"Sesión de {username} cerrada correctamente.")
     return redirect("index")
 
 
