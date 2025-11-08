@@ -89,7 +89,16 @@
             <div class="col-12">
               <label class="form-label">Correo</label>
               {{ form.email }}
-              {% if form.email.errors %}<div class="invalid-feedback d-block">{{ form.email.errors|striptags }}</div>{% endif %}
+              {% with server_error=form.email.errors|striptags %}
+                <div
+                  id="email-error-feedback"
+                  class="invalid-feedback{% if server_error %} d-block{% endif %}"
+                  data-server-message="{{ server_error|escape }}"
+                  aria-live="polite"
+                >
+                  {% if server_error %}{{ server_error }}{% endif %}
+                </div>
+              {% endwith %}
             </div>
             <div class="col-12">
               <label class="form-label">Tipo</label>
@@ -316,6 +325,42 @@
   const FIELD_SANGRE = document.getElementById("id_tipo_sangre");
   const FIELD_EQUIPO = document.getElementById("id_equipo");
   const requiredFecha = document.getElementById("requiredFecha");
+  const emailField = document.getElementById("id_email");
+  const emailFeedback = document.getElementById("email-error-feedback");
+
+  if (emailField && emailFeedback) {
+    let serverMessage = (emailFeedback.dataset.serverMessage || "").trim();
+    const clientMessage = "Ingresa un correo electrónico válido. Ejemplo: usuario@dominio.com";
+
+    if (serverMessage) {
+      emailFeedback.textContent = serverMessage;
+      emailFeedback.classList.add("d-block");
+    } else {
+      emailFeedback.textContent = "";
+      emailFeedback.classList.remove("d-block");
+    }
+
+    emailField.addEventListener("invalid", function () {
+      if (emailField.value.trim()) {
+        emailField.setCustomValidity(clientMessage);
+        emailFeedback.textContent = clientMessage;
+        emailFeedback.classList.add("d-block");
+      } else {
+        emailField.setCustomValidity("");
+        emailFeedback.textContent = "";
+        emailFeedback.classList.remove("d-block");
+      }
+    });
+
+    emailField.addEventListener("input", function () {
+      emailField.setCustomValidity("");
+      if (serverMessage) {
+        serverMessage = "";
+      }
+      emailFeedback.textContent = "";
+      emailFeedback.classList.remove("d-block");
+    });
+  }
 
   // Elementos de indicadores
   const edadIndicador = document.getElementById("edadIndicador");

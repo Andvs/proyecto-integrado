@@ -58,7 +58,7 @@
                   {{ equipo.entrenador.nombre_completo }}
                 </td>
                 <td class="text-center">
-                  {% with total=equipo.jugadores.count %}
+                  {% with total=equipo.total_jugadores_activos %}
                     {% if total > 0 %}
                       <span class="badge bg-success">{{ total }}</span>
                     {% else %}

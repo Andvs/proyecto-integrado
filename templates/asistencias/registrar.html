@@ -33,10 +33,10 @@
 
       <!-- Fecha y hora de marcaje -->
       <div class="col-md-6">
-        <label class="form-label">Fecha y hora de marcaje <span class="text-danger">*</span></label>
-        <input type="datetime-local" name="fecha_hora_marcaje" id="fecha-hora-marcaje" 
-               class="form-control" value="{{ fecha_hora_actual }}" required>
-        <div class="form-text">Debe estar dentro del rango de la actividad.</div>
+        <label class="form-label">Fecha y hora de marcaje</label>
+        <input type="datetime-local" id="fecha-hora-marcaje"
+               class="form-control" value="{{ fecha_hora_actual }}" disabled readonly>
+        <div class="form-text">Se completa automáticamente al guardar y debe estar dentro del rango de la actividad.</div>
       </div>
 
       <!-- Entrenador (solo si es admin) -->
@@ -115,7 +115,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const fechaInicio = option.dataset.fechaInicio;
     const fechaFin = option.dataset.fechaFin;
     
-    // Establecer límites en el input de fecha
+    // Establecer límites en el input de fecha (solo informativos, el campo está deshabilitado)
     inputFechaHora.min = fechaInicio + 'T00:00';
     inputFechaHora.max = fechaFin + 'T23:59';
     

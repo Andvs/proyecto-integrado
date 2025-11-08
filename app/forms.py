@@ -18,6 +18,9 @@ class UsuarioCrearForm(forms.Form):
         label="Correo",
         required=False,
         widget=forms.EmailInput(attrs={"class": "form-control", "placeholder": "Correo electrónico"}),
+        error_messages={
+            "invalid": "Ingresa un correo electrónico válido. Ejemplo: usuario@dominio.com",
+        },
     )
     password1 = forms.CharField(
         label="Contraseña",
@@ -132,10 +135,10 @@ class UsuarioCrearForm(forms.Form):
             return None
         
         # Validar edad
-        if edad >= edad_maxima:
+        if edad > edad_maxima:
             raise ValidationError(
                 f"El jugador tiene {edad} años. No puede estar en la categoría {nombre_categoria} "
-                f"(edad máxima: {edad_maxima - 1} años). "
+                f"(edad máxima: {edad_maxima} años). "
                 f"Por favor, selecciona un equipo de categoría superior o verifica la fecha de nacimiento."
             )
         

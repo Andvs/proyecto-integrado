@@ -6,7 +6,7 @@ from django.contrib.auth import get_user_model, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import AuthenticationForm
 from django.core.paginator import Paginator
-from django.db.models import Q
+from django.db.models import Q, Count
 from django.shortcuts import get_object_or_404, redirect, render
 
 from .forms import UsuarioCrearForm, UsuarioEditarForm
@@ -603,9 +603,10 @@ def equipos_lista(request):
     q = (request.GET.get("q") or "").strip()
 
     qs = (Equipo.objects
-          .select_related("categoria", "entrenador")
-          .prefetch_related("jugadores")
-          .order_by("categoria__slug", "nombre"))
+        .select_related("categoria", "entrenador")
+        .annotate(total_jugadores_activos=Count("jugadores", filter=Q(jugadores__activo=True)))
+        .prefetch_related("jugadores")
+        .order_by("categoria__slug", "nombre"))
 
     if q:
         qs = qs.filter(
@@ -727,7 +728,7 @@ def equipos_eliminar(request, equipo_id):
 
     equipo = get_object_or_404(Equipo, pk=equipo_id)
     
-    num_jugadores = equipo.jugadores.count()
+    num_jugadores = equipo.jugadores.filter(activo=True).count()
     if num_jugadores > 0:
         messages.warning(request, f"No se puede eliminar el equipo '{equipo.nombre}' porque tiene {num_jugadores} jugador(es) asignado(s).")
         return redirect("equipos_lista")
@@ -1051,15 +1052,17 @@ def asistencias_registrar(request):
 
         if not actividad_id:
             messages.error(request, "Debes seleccionar una actividad.")
-        elif not fecha_hora_marcaje:
-            messages.error(request, "Debes especificar la fecha y hora del marcaje.")
         else:
             try:
                 actividad = ActividadDeportiva.objects.get(pk=actividad_id)
-                fecha_hora_obj = datetime.strptime(fecha_hora_marcaje, "%Y-%m-%dT%H:%M")
+                fecha_hora_obj = timezone.localtime()
+                fecha_marcaje = fecha_hora_obj.date()
 
-                if not (actividad.fecha_inicio <= fecha_hora_obj.date() <= actividad.fecha_fin):
-                    messages.error(request, "La fecha/hora de marcaje debe estar dentro del rango de la actividad.")
+                if not (actividad.fecha_inicio <= fecha_marcaje <= actividad.fecha_fin):
+                    messages.error(
+                        request,
+                        "La fecha y hora del marcaje automático debe estar dentro del rango de la actividad."
+                    )
                 else:
                     if es_entrenador and not request.user.is_superuser:
                         entrenador_perfil = perfil
@@ -1114,8 +1117,6 @@ def asistencias_registrar(request):
                 messages.error(request, "Jugador no encontrado.")
             except Perfil.DoesNotExist:
                 messages.error(request, "Entrenador no encontrado.")
-            except ValueError:
-                messages.error(request, "Formato de fecha/hora inválido.")
             except Exception as e:
                 messages.error(request, f"Error al registrar asistencias: {str(e)}")
 
@@ -1131,9 +1132,7 @@ def asistencias_registrar(request):
             user__is_active=True
         ).order_by("apellido_paterno", "primer_nombre")
 
-    ahora_utc = datetime.utcnow()
-    ahora_chile = ahora_utc - timedelta(hours=3)
-    fecha_hora_actual = ahora_chile.strftime('%Y-%m-%dT%H:%M')
+    fecha_hora_actual = timezone.localtime().strftime('%Y-%m-%dT%H:%M')
 
     return render(request, "asistencias/registrar.html", {
         "actividades": actividades,
@@ -1187,7 +1186,6 @@ def asistencias_editar(request, asistencia_id):
         return redirect("asistencias_lista")
 
     from .models import Asistencia, AsistenciaEstado
-    from datetime import datetime
 
     asistencia = get_object_or_404(
         Asistencia.objects.select_related("jugador__perfil", "actividad", "entrenador"),
@@ -1203,14 +1201,18 @@ def asistencias_editar(request, asistencia_id):
         estado = request.POST.get("estado")
         fecha_hora_marcaje = request.POST.get("fecha_hora_marcaje")
 
-        if not estado or not fecha_hora_marcaje:
-            messages.error(request, "Todos los campos son obligatorios.")
+        if not estado:
+            messages.error(request, "Debes seleccionar un estado.")
         else:
             try:
-                fecha_hora_obj = datetime.strptime(fecha_hora_marcaje, "%Y-%m-%dT%H:%M")
+                fecha_hora_obj = timezone.localtime()
+                fecha_marcaje = fecha_hora_obj.date()
 
-                if not (asistencia.actividad.fecha_inicio <= fecha_hora_obj.date() <= asistencia.actividad.fecha_fin):
-                    messages.error(request, "La fecha/hora de marcaje debe estar dentro del rango de la actividad.")
+                if not (asistencia.actividad.fecha_inicio <= fecha_marcaje <= asistencia.actividad.fecha_fin):
+                    messages.error(
+                        request,
+                        "La fecha y hora del marcaje automático debe estar dentro del rango de la actividad."
+                    )
                 else:
                     asistencia.estado = estado
                     asistencia.fecha_hora_marcaje = fecha_hora_obj
@@ -1219,8 +1221,8 @@ def asistencias_editar(request, asistencia_id):
                     messages.success(request, "Asistencia actualizada correctamente.")
                     return redirect("asistencias_lista")
 
-            except ValueError:
-                messages.error(request, "Formato de fecha/hora inválido.")
+            except Exception as e:
+                messages.error(request, f"No se pudo actualizar la asistencia: {str(e)}")
 
     from .models import AsistenciaEstado
     return render(request, "asistencias/editar.html", {
