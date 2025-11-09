@@ -812,8 +812,11 @@ def actividades_crear(request):
         tipo = request.POST.get("tipo", "")
         fecha_inicio = request.POST.get("fecha_inicio", "")
         fecha_fin = request.POST.get("fecha_fin", "")
+        hora_inicio = request.POST.get("hora_inicio", "")
+        hora_fin = request.POST.get("hora_fin", "")
         descripcion = request.POST.get("descripcion", "").strip()
         equipos_ids = request.POST.getlist("equipos")
+        entrenador_id = request.POST.get("entrenador_responsable", "")  # NUEVO
 
         if not titulo:
             messages.error(request, "El título es obligatorio.")
@@ -831,31 +834,98 @@ def actividades_crear(request):
                 if fecha_fin_obj < fecha_inicio_obj:
                     messages.error(request, "La fecha de fin no puede ser anterior a la fecha de inicio.")
                 else:
+                    # Validar horas si están presentes
+                    hora_inicio_obj = None
+                    hora_fin_obj = None
+                    
+                    if hora_inicio and hora_fin:
+                        try:
+                            hora_inicio_obj = datetime.strptime(hora_inicio, "%H:%M").time()
+                            hora_fin_obj = datetime.strptime(hora_fin, "%H:%M").time()
+                            
+                            if hora_fin_obj <= hora_inicio_obj:
+                                messages.error(request, "La hora de fin debe ser posterior a la hora de inicio.")
+                                raise ValueError("Hora inválida")
+                        except ValueError as e:
+                            if "Hora inválida" not in str(e):
+                                messages.error(request, "Formato de hora inválido. Use HH:MM")
+                            raise
+                    
+                    # Crear actividad
                     actividad = ActividadDeportiva.objects.create(
                         titulo=titulo,
                         tipo=tipo,
                         fecha_inicio=fecha_inicio_obj,
                         fecha_fin=fecha_fin_obj,
-                        descripcion=descripcion
+                        hora_inicio=hora_inicio_obj,
+                        hora_fin=hora_fin_obj,
+                        descripcion=descripcion,
+                        entrenador_responsable_id=entrenador_id if entrenador_id else None  # NUEVO
                     )
 
+                    # Asignar equipos
                     equipos = Equipo.objects.filter(id__in=equipos_ids)
                     actividad.equipos.set(equipos)
-
-                    messages.success(request, f"Actividad '{titulo}' creada correctamente.")
-                    return redirect("actividades_lista")
+                    
+                    # Verificar conflictos si hay horarios definidos
+                    if hora_inicio_obj and hora_fin_obj:
+                        tiene_conflictos = False
+                        mensajes_conflicto = []
+                        
+                        # 1. Verificar solapamiento de equipos
+                        conflictos_equipos = actividad.verificar_solapamiento_equipos(equipos_ids)
+                        if conflictos_equipos:
+                            mensaje = "⚠️ <strong>Conflicto de equipos:</strong><br>"
+                            for conf in conflictos_equipos:
+                                act = conf['actividad']
+                                equipos_conf = conf['equipos_comunes']
+                                equipos_nombres = ', '.join([e.nombre for e in equipos_conf])
+                                mensaje += f"• '{act.titulo}' ({act.hora_inicio.strftime('%H:%M')} - {act.hora_fin.strftime('%H:%M')}) - Equipos: {equipos_nombres}<br>"
+                            mensajes_conflicto.append(mensaje)
+                            tiene_conflictos = True
+                        
+                        # 2. Verificar disponibilidad del entrenador (NUEVO)
+                        if entrenador_id:
+                            conflictos_entrenador = actividad.verificar_disponibilidad_entrenador(entrenador_id)
+                            if conflictos_entrenador:
+                                entrenador = Perfil.objects.get(id=entrenador_id)
+                                mensaje = f"⚠️ <strong>El entrenador {entrenador.nombre_completo} no está disponible:</strong><br>"
+                                for conf in conflictos_entrenador:
+                                    act = conf['actividad']
+                                    mensaje += f"• Ya tiene programado '{act.titulo}' ({act.hora_inicio.strftime('%H:%M')} - {act.hora_fin.strftime('%H:%M')})<br>"
+                                mensajes_conflicto.append(mensaje)
+                                tiene_conflictos = True
+                        
+                        if tiene_conflictos:
+                            # Eliminar la actividad creada
+                            actividad.delete()
+                            # Mostrar todos los mensajes de conflicto
+                            for msg in mensajes_conflicto:
+                                messages.error(request, msg)
+                        else:
+                            messages.success(request, f"Actividad '{titulo}' creada correctamente.")
+                            return redirect("actividades_lista")
+                    else:
+                        messages.success(request, f"Actividad '{titulo}' creada correctamente.")
+                        return redirect("actividades_lista")
 
             except ValueError:
-                messages.error(request, "Formato de fecha inválido.")
+                messages.error(request, "Formato de fecha u hora inválido.")
             except Exception as e:
                 messages.error(request, f"Error al crear la actividad: {str(e)}")
 
     equipos = Equipo.objects.select_related("categoria").order_by("categoria__slug", "nombre")
     tipos = ActividadTipo.choices
+    # NUEVO: Obtener entrenadores activos
+    entrenadores = Perfil.objects.filter(
+        tipo=PerfilTipo.ENTRENADOR,
+        user__is_active=True
+    ).order_by("apellido_paterno", "primer_nombre")
 
     return render(request, "actividades/form.html", {
         "equipos": equipos,
         "tipos": tipos,
+        "entrenadores": entrenadores,  # NUEVO
         "modo": "crear"
     })
 
@@ -879,6 +949,165 @@ def actividades_editar(request, actividad_id):
         tipo = request.POST.get("tipo", "")
         fecha_inicio = request.POST.get("fecha_inicio", "")
         fecha_fin = request.POST.get("fecha_fin", "")
+        hora_inicio = request.POST.get("hora_inicio", "")
+        hora_fin = request.POST.get("hora_fin", "")
+        descripcion = request.POST.get("descripcion", "").strip()
+        equipos_ids = request.POST.getlist("equipos")
+        entrenador_id = request.POST.get("entrenador_responsable", "")  # NUEVO
+
+        if not titulo:
+            messages.error(request, "El título es obligatorio.")
+        elif not tipo:
+            messages.error(request, "Debes seleccionar un tipo de actividad.")
+        elif not fecha_inicio or not fecha_fin:
+            messages.error(request, "Las fechas de inicio y fin son obligatorias.")
+        elif not equipos_ids:
+            messages.error(request, "Debes seleccionar al menos un equipo.")
+        else:
+            try:
+                fecha_inicio_obj = datetime.strptime(fecha_inicio, "%Y-%m-%d").date()
+                fecha_fin_obj = datetime.strptime(fecha_fin, "%Y-%m-%d").date()
+
+                if fecha_fin_obj < fecha_inicio_obj:
+                    messages.error(request, "La fecha de fin no puede ser anterior a la fecha de inicio.")
+                else:
+                    # Validar horas si están presentes
+                    hora_inicio_obj = None
+                    hora_fin_obj = None
+                    
+                    if hora_inicio and hora_fin:
+                        try:
+                            hora_inicio_obj = datetime.strptime(hora_inicio, "%H:%M").time()
+                            hora_fin_obj = datetime.strptime(hora_fin, "%H:%M").time()
+                            
+                            if hora_fin_obj <= hora_inicio_obj:
+                                messages.error(request, "La hora de fin debe ser posterior a la hora de inicio.")
+                                raise ValueError("Hora inválida")
+                        except ValueError as e:
+                            if "Hora inválida" not in str(e):
+                                messages.error(request, "Formato de hora inválido. Use HH:MM")
+                            raise
+                    
+                    # Verificar conflictos si hay horarios definidos
+                    if hora_inicio_obj and hora_fin_obj:
+                        tiene_conflictos = False
+                        mensajes_conflicto = []
+                        
+                        # Crear copia temporal para verificar
+                        actividad_temp = actividad
+                        actividad_temp.fecha_inicio = fecha_inicio_obj
+                        actividad_temp.fecha_fin = fecha_fin_obj
+                        actividad_temp.hora_inicio = hora_inicio_obj
+                        actividad_temp.hora_fin = hora_fin_obj
+                        
+                        # 1. Verificar solapamiento de equipos
+                        conflictos_equipos = actividad_temp.verificar_solapamiento_equipos(equipos_ids)
+                        if conflictos_equipos:
+                            mensaje = "⚠️ <strong>Conflicto de equipos:</strong><br>"
+                            for conf in conflictos_equipos:
+                                act = conf['actividad']
+                                equipos_conf = conf['equipos_comunes']
+                                equipos_nombres = ', '.join([e.nombre for e in equipos_conf])
+                                mensaje += f"• '{act.titulo}' ({act.hora_inicio.strftime('%H:%M')} - {act.hora_fin.strftime('%H:%M')}) - Equipos: {equipos_nombres}<br>"
+                            mensajes_conflicto.append(mensaje)
+                            tiene_conflictos = True
+                        
+                        # 2. Verificar disponibilidad del entrenador (NUEVO)
+                        if entrenador_id:
+                            conflictos_entrenador = actividad_temp.verificar_disponibilidad_entrenador(entrenador_id)
+                            if conflictos_entrenador:
+                                entrenador = Perfil.objects.get(id=entrenador_id)
+                                mensaje = f"⚠️ <strong>El entrenador {entrenador.nombre_completo} no está disponible:</strong><br>"
+                                for conf in conflictos_entrenador:
+                                    act = conf['actividad']
+                                    mensaje += f"• Ya tiene programado '{act.titulo}' ({act.hora_inicio.strftime('%H:%M')} - {act.hora_fin.strftime('%H:%M')})<br>"
+                                mensajes_conflicto.append(mensaje)
+                                tiene_conflictos = True
+                        
+                        if tiene_conflictos:
+                            # Mostrar todos los mensajes de conflicto
+                            for msg in mensajes_conflicto:
+                                messages.error(request, msg)
+                        else:
+                            # Actualizar actividad
+                            actividad.titulo = titulo
+                            actividad.tipo = tipo
+                            actividad.fecha_inicio = fecha_inicio_obj
+                            actividad.fecha_fin = fecha_fin_obj
+                            actividad.hora_inicio = hora_inicio_obj
+                            actividad.hora_fin = hora_fin_obj
+                            actividad.descripcion = descripcion
+                            actividad.entrenador_responsable_id = entrenador_id if entrenador_id else None  # NUEVO
+                            actividad.save()
+
+                            equipos = Equipo.objects.filter(id__in=equipos_ids)
+                            actividad.equipos.set(equipos)
+
+                            messages.success(request, f"Actividad '{titulo}' actualizada correctamente.")
+                            return redirect("actividades_lista")
+                    else:
+                        # Actualizar sin validación de horarios
+                        actividad.titulo = titulo
+                        actividad.tipo = tipo
+                        actividad.fecha_inicio = fecha_inicio_obj
+                        actividad.fecha_fin = fecha_fin_obj
+                        actividad.hora_inicio = hora_inicio_obj
+                        actividad.hora_fin = hora_fin_obj
+                        actividad.descripcion = descripcion
+                        actividad.entrenador_responsable_id = entrenador_id if entrenador_id else None
+                        actividad.save()
+
+                        equipos = Equipo.objects.filter(id__in=equipos_ids)
+                        actividad.equipos.set(equipos)
+
+                        messages.success(request, f"Actividad '{titulo}' actualizada correctamente.")
+                        return redirect("actividades_lista")
+
+            except ValueError:
+                messages.error(request, "Formato de fecha u hora inválido.")
+            except Exception as e:
+                messages.error(request, f"Error al actualizar la actividad: {str(e)}")
+
+    equipos = Equipo.objects.select_related("categoria").order_by("categoria__slug", "nombre")
+    tipos = ActividadTipo.choices
+    equipos_seleccionados = list(actividad.equipos.values_list("id", flat=True))
+    # NUEVO: Obtener entrenadores activos
+    entrenadores = Perfil.objects.filter(
+        tipo=PerfilTipo.ENTRENADOR,
+        user__is_active=True
+    ).order_by("apellido_paterno", "primer_nombre")
+
+    return render(request, "actividades/form.html", {
+        "actividad": actividad,
+        "equipos": equipos,
+        "tipos": tipos,
+        "equipos_seleccionados": equipos_seleccionados,
+        "entrenadores": entrenadores,  # NUEVO
+        "modo": "editar"
+    })
+
+
+@login_required
+def actividades_editar(request, actividad_id):
+    if not _es_admin_equipo(request.user):
+        messages.error(request, "No tienes permisos para editar actividades deportivas.")
+        return redirect("actividades_lista")
+
+    from .models import ActividadTipo
+    from datetime import datetime
+
+    actividad = get_object_or_404(
+        ActividadDeportiva.objects.prefetch_related("equipos"),
+        pk=actividad_id
+    )
+
+    if request.method == "POST":
+        titulo = request.POST.get("titulo", "").strip()
+        tipo = request.POST.get("tipo", "")
+        fecha_inicio = request.POST.get("fecha_inicio", "")
+        fecha_fin = request.POST.get("fecha_fin", "")
+        hora_inicio = request.POST.get("hora_inicio", "")  # NUEVO
+        hora_fin = request.POST.get("hora_fin", "")        # NUEVO
         descripcion = request.POST.get("descripcion", "").strip()
         equipos_ids = request.POST.getlist("equipos")
 
@@ -898,21 +1127,78 @@ def actividades_editar(request, actividad_id):
                 if fecha_fin_obj < fecha_inicio_obj:
                     messages.error(request, "La fecha de fin no puede ser anterior a la fecha de inicio.")
                 else:
-                    actividad.titulo = titulo
-                    actividad.tipo = tipo
-                    actividad.fecha_inicio = fecha_inicio_obj
-                    actividad.fecha_fin = fecha_fin_obj
-                    actividad.descripcion = descripcion
-                    actividad.save()
+                    # Validar horas si están presentes
+                    hora_inicio_obj = None
+                    hora_fin_obj = None
+                    
+                    if hora_inicio and hora_fin:
+                        try:
+                            hora_inicio_obj = datetime.strptime(hora_inicio, "%H:%M").time()
+                            hora_fin_obj = datetime.strptime(hora_fin, "%H:%M").time()
+                            
+                            if hora_fin_obj <= hora_inicio_obj:
+                                messages.error(request, "La hora de fin debe ser posterior a la hora de inicio.")
+                                raise ValueError("Hora inválida")
+                        except ValueError as e:
+                            if "Hora inválida" not in str(e):
+                                messages.error(request, "Formato de hora inválido. Use HH:MM")
+                            raise
+                    
+                    # Verificar solapamiento de horarios ANTES de guardar
+                    if hora_inicio_obj and hora_fin_obj:
+                        # Crear copia temporal para verificar
+                        actividad_temp = actividad
+                        actividad_temp.fecha_inicio = fecha_inicio_obj
+                        actividad_temp.fecha_fin = fecha_fin_obj
+                        actividad_temp.hora_inicio = hora_inicio_obj
+                        actividad_temp.hora_fin = hora_fin_obj
+                        
+                        conflictos = actividad_temp.verificar_solapamiento_equipos(equipos_ids)
+                        if conflictos:
+                            # Crear mensaje de advertencia con los conflictos
+                            mensaje_conflicto = f"No se puede guardar. La actividad '{titulo}' se solapa con:\n"
+                            for conf in conflictos:
+                                act = conf['actividad']
+                                equipos_conf = conf['equipos_comunes']
+                                equipos_nombres = ', '.join([e.nombre for e in equipos_conf])
+                                mensaje_conflicto += f"• '{act.titulo}' ({act.hora_inicio.strftime('%H:%M')} - {act.hora_fin.strftime('%H:%M')}) - Equipos: {equipos_nombres}\n"
+                            
+                            messages.error(request, mensaje_conflicto)
+                        else:
+                            # Actualizar actividad
+                            actividad.titulo = titulo
+                            actividad.tipo = tipo
+                            actividad.fecha_inicio = fecha_inicio_obj
+                            actividad.fecha_fin = fecha_fin_obj
+                            actividad.hora_inicio = hora_inicio_obj
+                            actividad.hora_fin = hora_fin_obj
+                            actividad.descripcion = descripcion
+                            actividad.save()
 
-                    equipos = Equipo.objects.filter(id__in=equipos_ids)
-                    actividad.equipos.set(equipos)
+                            equipos = Equipo.objects.filter(id__in=equipos_ids)
+                            actividad.equipos.set(equipos)
 
-                    messages.success(request, f"Actividad '{titulo}' actualizada correctamente.")
-                    return redirect("actividades_lista")
+                            messages.success(request, f"Actividad '{titulo}' actualizada correctamente.")
+                            return redirect("actividades_lista")
+                    else:
+                        # Actualizar actividad sin validación de horarios
+                        actividad.titulo = titulo
+                        actividad.tipo = tipo
+                        actividad.fecha_inicio = fecha_inicio_obj
+                        actividad.fecha_fin = fecha_fin_obj
+                        actividad.hora_inicio = hora_inicio_obj
+                        actividad.hora_fin = hora_fin_obj
+                        actividad.descripcion = descripcion
+                        actividad.save()
+
+                        equipos = Equipo.objects.filter(id__in=equipos_ids)
+                        actividad.equipos.set(equipos)
+
+                        messages.success(request, f"Actividad '{titulo}' actualizada correctamente.")
+                        return redirect("actividades_lista")
 
             except ValueError:
-                messages.error(request, "Formato de fecha inválido.")
+                messages.error(request, "Formato de fecha u hora inválido.")
             except Exception as e:
                 messages.error(request, f"Error al actualizar la actividad: {str(e)}")
 

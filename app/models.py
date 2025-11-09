@@ -227,8 +227,19 @@ class ActividadDeportiva(TimeStampedModel):
     tipo = models.CharField(max_length=15, choices=ActividadTipo.choices, db_index=True)
     fecha_inicio = models.DateField()
     fecha_fin = models.DateField()
+    hora_inicio = models.TimeField(null=True, blank=True)
+    hora_fin = models.TimeField(null=True, blank=True)
     descripcion = models.TextField(blank=True)
     equipos = models.ManyToManyField(Equipo, through="EquipoActividad", related_name="actividades")
+    # NUEVO CAMPO: Entrenador responsable de la actividad
+    entrenador_responsable = models.ForeignKey(
+        Perfil,
+        on_delete=models.PROTECT,
+        related_name="actividades_responsable",
+        limit_choices_to={"tipo": PerfilTipo.ENTRENADOR},
+        null=True,
+        blank=True
+    )
 
     class Meta:
         ordering = ["-fecha_inicio", "titulo"]
@@ -241,7 +252,138 @@ class ActividadDeportiva(TimeStampedModel):
 
     def __str__(self):
         return f"{self.titulo} · {self.get_tipo_display()} ({self.fecha_inicio} → {self.fecha_fin})"
-
+    
+    def clean(self):
+        """Validar que no haya solapamiento de horarios."""
+        super().clean()
+        
+        # Si no hay horas definidas, no validar solapamiento
+        if not self.hora_inicio or not self.hora_fin:
+            return
+        
+        # Validar que hora_fin sea mayor que hora_inicio
+        if self.hora_fin <= self.hora_inicio:
+            raise ValidationError({
+                'hora_fin': 'La hora de fin debe ser posterior a la hora de inicio.'
+            })
+    
+    def verificar_solapamiento_equipos(self, equipos_ids):
+        """
+        Verificar si hay solapamiento con otras actividades de los mismos equipos.
+        Retorna lista de conflictos o None.
+        """
+        if not self.hora_inicio or not self.hora_fin:
+            return None
+        
+        # Buscar actividades que tengan al menos un equipo en común
+        actividades_solapadas = ActividadDeportiva.objects.filter(
+            equipos__in=equipos_ids,
+            fecha_inicio__lte=self.fecha_fin,
+            fecha_fin__gte=self.fecha_inicio
+        ).exclude(pk=self.pk).distinct()
+        
+        conflictos = []
+        for actividad in actividades_solapadas:
+            # Si ambas actividades tienen horarios definidos, verificar solapamiento
+            if actividad.hora_inicio and actividad.hora_fin:
+                # Verificar si las fechas se solapan
+                if self.fecha_inicio <= actividad.fecha_fin and self.fecha_fin >= actividad.fecha_inicio:
+                    # Si es el mismo día, verificar horarios
+                    if self.fecha_inicio == actividad.fecha_inicio:
+                        if self.hora_inicio < actividad.hora_fin and self.hora_fin > actividad.hora_inicio:
+                            equipos_comunes = set(equipos_ids) & set(actividad.equipos.values_list('id', flat=True))
+                            conflictos.append({
+                                'actividad': actividad,
+                                'equipos_comunes': Equipo.objects.filter(id__in=equipos_comunes),
+                                'tipo': 'equipo'
+                            })
+        
+        return conflictos if conflictos else None
+    
+    def verificar_disponibilidad_entrenador(self, entrenador_id):
+        """
+        Verificar si el entrenador está disponible en el horario de la actividad.
+        Retorna lista de conflictos o None.
+        """
+        if not self.hora_inicio or not self.hora_fin or not entrenador_id:
+            return None
+        
+        # Buscar actividades del mismo entrenador en las mismas fechas
+        actividades_entrenador = ActividadDeportiva.objects.filter(
+            entrenador_responsable_id=entrenador_id,
+            fecha_inicio__lte=self.fecha_fin,
+            fecha_fin__gte=self.fecha_inicio
+        ).exclude(pk=self.pk)
+        
+        # También buscar equipos que el entrenador dirige y tienen actividades
+        equipos_entrenador = Equipo.objects.filter(entrenador_id=entrenador_id).values_list('id', flat=True)
+        actividades_equipos = ActividadDeportiva.objects.filter(
+            equipos__in=equipos_entrenador,
+            fecha_inicio__lte=self.fecha_fin,
+            fecha_fin__gte=self.fecha_inicio
+        ).exclude(pk=self.pk).distinct()
+        
+        # Combinar ambas consultas
+        todas_actividades = (actividades_entrenador | actividades_equipos).distinct()
+        
+        conflictos = []
+        for actividad in todas_actividades:
+            # Si la actividad tiene horarios definidos, verificar solapamiento
+            if actividad.hora_inicio and actividad.hora_fin:
+                # Si es el mismo día, verificar horarios
+                if self.fecha_inicio == actividad.fecha_inicio:
+                    if self.hora_inicio < actividad.hora_fin and self.hora_fin > actividad.hora_inicio:
+                        conflictos.append({
+                            'actividad': actividad,
+                            'tipo': 'entrenador'
+                        })
+        
+        return conflictos if conflictos else None
+    
+    def obtener_entrenadores_disponibles(self):
+        """
+        Obtener lista de entrenadores que están disponibles para esta actividad.
+        Útil para mostrar en el formulario.
+        """
+        if not self.hora_inicio or not self.hora_fin or not self.fecha_inicio:
+            # Si no hay horarios, retornar todos los entrenadores activos
+            return Perfil.objects.filter(
+                tipo=PerfilTipo.ENTRENADOR,
+                user__is_active=True
+            )
+        
+        # Obtener todos los entrenadores
+        todos_entrenadores = Perfil.objects.filter(
+            tipo=PerfilTipo.ENTRENADOR,
+            user__is_active=True
+        ).values_list('id', flat=True)
+        
+        # Encontrar entrenadores ocupados
+        entrenadores_ocupados = set()
+        
+        # Buscar por actividades donde son responsables
+        actividades_conflicto = ActividadDeportiva.objects.filter(
+            fecha_inicio=self.fecha_inicio,
+            hora_inicio__lt=self.hora_fin,
+            hora_fin__gt=self.hora_inicio,
+            entrenador_responsable__isnull=False
+        ).exclude(pk=self.pk).values_list('entrenador_responsable_id', flat=True)
+        
+        entrenadores_ocupados.update(actividades_conflicto)
+        
+        # Buscar por equipos que dirigen con actividades
+        equipos_con_actividades = Equipo.objects.filter(
+            actividades__fecha_inicio=self.fecha_inicio,
+            actividades__hora_inicio__lt=self.hora_fin,
+            actividades__hora_fin__gt=self.hora_inicio
+        ).exclude(actividades__pk=self.pk).values_list('entrenador_id', flat=True)
+        
+        entrenadores_ocupados.update(equipos_con_actividades)
+        
+        # Retornar entrenadores disponibles
+        entrenadores_disponibles = set(todos_entrenadores) - entrenadores_ocupados
+        
+        return Perfil.objects.filter(id__in=entrenadores_disponibles)
 
 class EquipoActividad(models.Model):
     """Tabla intermedia simple para ActividadDeportiva ↔ Equipo."""
