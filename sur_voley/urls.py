@@ -39,7 +39,7 @@ urlpatterns = [
     path("actividades/", v.actividades_lista, name="actividades_lista"),
     path("actividades/nueva/", v.actividades_crear, name="actividades_crear"),
     path("actividades/<int:actividad_id>/editar/", v.actividades_editar, name="actividades_editar"),
-    path("actividades/<int:actividad_id>/eliminar/", v.actividades_eliminar, name="actividades_eliminar"),
+    path('actividades/<int:actividad_id>/cancelar/', v.actividad_cancelar, name='actividad_cancelar'),
     path("actividades/<int:actividad_id>/detalle/", v.actividades_detalle, name="actividades_detalle"),
     
     # Asistencias

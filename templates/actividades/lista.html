@@ -6,10 +6,8 @@
 {% block main %}
 <div class="container-fluid">
 
-  <!-- Barra superior: búsqueda + filtros + agregar -->
   <div class="mb-3">
     <form method="get" class="row g-2 align-items-end">
-      <!-- Búsqueda -->
       <div class="col-md-5">
         <label class="form-label small">Buscar</label>
         <div class="input-group">
@@ -24,7 +22,6 @@
         </div>
       </div>
 
-      <!-- Filtro por tipo -->
       <div class="col-md-3">
         <label class="form-label small">Tipo de actividad</label>
         <select name="tipo" class="form-select">
@@ -37,7 +34,6 @@
         </select>
       </div>
 
-      <!-- Botones -->
       <div class="col-md-4 text-end">
         <button class="btn btn-primary" type="submit">
           <i class="bi bi-search"></i> Buscar
@@ -49,7 +45,6 @@
     </form>
   </div>
 
-  <!-- Tabla -->
   <div class="card card-soft">
     <div class="card-body p-0">
       <div class="table-responsive">
@@ -69,7 +64,19 @@
               <tr>
                 <td>
                   <strong>{{ actividad.titulo }}</strong>
-                  {% if actividad.descripcion %}
+
+                  {% if actividad.cancelada %}
+                    <span class="badge bg-danger ms-2">CANCELADA</span>
+
+                    {% if actividad.motivo_cancelacion %}
+                      <br><small class="text-danger fst-italic">
+                        Motivo: {{ actividad.motivo_cancelacion|truncatewords:10 }}
+                      </small>
+                    {% endif %}
+
+                  {% endif %}
+
+                  {% if actividad.descripcion and not actividad.cancelada %}
                     <br><small class="text-muted">{{ actividad.descripcion|truncatewords:10 }}</small>
                   {% endif %}
                 </td>
@@ -100,29 +107,27 @@
                     <a href="{% url 'actividades_detalle' actividad.id %}" class="btn btn-sm btn-outline-info" title="Ver detalles">
                       <i class="bi bi-eye"></i>
                     </a>
-                    <a href="{% url 'actividades_editar' actividad.id %}" class="btn btn-sm btn-outline-primary">
+
+                    <a href="{% url 'actividades_editar' actividad.id %}" class="btn btn-sm btn-outline-primary" title="Editar">
                       <i class="bi bi-pencil-square"></i>
                     </a>
 
-                    <form action="{% url 'actividades_eliminar' actividad.id %}" method="post" class="d-inline">
-                      {% csrf_token %}
-                      <button class="btn btn-sm btn-outline-danger" 
-                              onclick="return confirm('¿Estás seguro de eliminar la actividad \'{{ actividad.titulo }}\'?\n\nNOTA: No se puede eliminar si tiene asistencias registradas.');">
-                        <i class="bi bi-trash"></i>
-                      </button>
-                    </form>
-                  </div>
+                    {% if not actividad.cancelada %}
+                      <a href="{% url 'actividad_cancelar' actividad.id %}" class="btn btn-sm btn-outline-danger" title="Cancelar actividad">
+                          <i class="bi bi-x-circle"></i>
+                      </a>
+                    {% endif %}
+                    
+                    </div>
                 </td>
               </tr>
             {% empty %}
-              <tr><td colspan="6" class="text-center py-4 text-muted">No se encontraron actividades deportivas.</td></tr>
-            {% endfor %}
+              <tr><td colspan="6" class="text-center py-4 text-muted">No se encontraron actividades deportivas.</td></tr> {% endfor %}
           </tbody>
         </table>
       </div>
     </div>
 
-    <!-- Paginación -->
     {% if page_obj.paginator.num_pages > 1 %}
       <div class="card-footer d-flex justify-content-between align-items-center">
         <small class="text-muted">
@@ -130,9 +135,8 @@
         </small>
         <nav>
           <ul class="pagination mb-0">
-
             {% if page_obj.has_previous %}
-              <li class="page-item">
+Ambos (Anterior y Siguiente)
                 <a class="page-link" href="?q={{ q }}&tipo={{ tipo_filtro }}&page={{ page_obj.previous_page_number }}">Anterior</a>
               </li>
             {% else %}
@@ -156,7 +160,6 @@
             {% else %}
               <li class="page-item disabled"><span class="page-link">Siguiente</span></li>
             {% endif %}
-
           </ul>
         </nav>
       </div>

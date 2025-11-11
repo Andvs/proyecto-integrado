@@ -1,0 +1,49 @@
+{% extends "inicio.html" %}
+
+{% block page_title %}Cancelar Actividad{% endblock %}
+
+{% block main %}
+<div class="container-fluid" style="max-width: 700px;">
+
+  {% if messages %}
+      {% for message in messages %}
+          <div class="alert {% if message.tags == 'error' %}alert-danger{% else %}alert-{{ message.tags }}{% endif %} alert-dismissible fade show" role="alert">
+              {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+      {% endfor %}
+  {% endif %}
+
+  <div class="card card-soft p-4">
+    <form method="post">
+      {% csrf_token %}
+      
+      <h4 class="mb-3">Confirmar Cancelación</h4>
+      <p>Estás a punto de cancelar la actividad:</p>
+      
+      <div class="alert alert-secondary">
+        <strong>{{ actividad.titulo }}</strong><br>
+        <small>{{ actividad.fecha_inicio|date:"d M, Y" }} ({{ actividad.get_tipo_display }})</small>
+      </div>
+
+      <div class="mb-3">
+        <label for="motivo" class="form-label">
+          Motivo de la cancelación <span class="text-danger">*</span>
+        </label>
+        <textarea name="motivo" id="motivo" class="form-control" rows="4" 
+                  placeholder="Ej: Lluvia, falta de jugadores, mantención de cancha, etc." 
+                  required></textarea>
+      </div>
+
+      <div class="d-flex gap-2 mt-4">
+        <button type="submit" class="btn btn-danger">
+          <i class="bi bi-x-circle"></i> Sí, confirmar cancelación
+        </button>
+        <a href="{% url 'actividades_lista' %}" class="btn btn-outline-secondary">
+          No, volver
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -228,6 +228,8 @@ class ActividadDeportiva(TimeStampedModel):
     fecha_inicio = models.DateField()
     fecha_fin = models.DateField()
     descripcion = models.TextField(blank=True)
+    cancelada = models.BooleanField(default=False)
+    motivo_cancelacion = models.TextField(blank=True, null=True, verbose_name="Motivo de Cancelación")
     equipos = models.ManyToManyField(Equipo, through="EquipoActividad", related_name="actividades")
 
     class Meta:

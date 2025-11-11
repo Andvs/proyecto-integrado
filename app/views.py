@@ -804,14 +804,14 @@ def actividades_crear(request):
         messages.error(request, "No tienes permisos para crear actividades deportivas.")
         return redirect("actividades_lista")
 
-    from .models import ActividadTipo
+    from .models import ActividadTipo, ActividadDeportiva, Equipo
     from datetime import datetime
 
     if request.method == "POST":
         titulo = request.POST.get("titulo", "").strip()
         tipo = request.POST.get("tipo", "")
         fecha_inicio = request.POST.get("fecha_inicio", "")
-        fecha_fin = request.POST.get("fecha_fin", "")
+        fecha_fin = request.POST.get("fecha_fin", "") # <-- Lo mantenemos para crearlo
         descripcion = request.POST.get("descripcion", "").strip()
         equipos_ids = request.POST.getlist("equipos")
 
@@ -819,37 +819,77 @@ def actividades_crear(request):
             messages.error(request, "El título es obligatorio.")
         elif not tipo:
             messages.error(request, "Debes seleccionar un tipo de actividad.")
-        elif not fecha_inicio or not fecha_fin:
-            messages.error(request, "Las fechas de inicio y fin son obligatorias.")
+        elif not fecha_inicio: # <-- Ya no validamos fecha_fin obligatoria
+            messages.error(request, "La fecha de inicio es obligatoria.")
         elif not equipos_ids:
             messages.error(request, "Debes seleccionar al menos un equipo.")
         else:
             try:
                 fecha_inicio_obj = datetime.strptime(fecha_inicio, "%Y-%m-%d").date()
-                fecha_fin_obj = datetime.strptime(fecha_fin, "%Y-%m-%d").date()
+                
+                # Si fecha_fin viene vacía, la hacemos igual a fecha_inicio
+                if not fecha_fin:
+                    fecha_fin_obj = fecha_inicio_obj
+                else:
+                    fecha_fin_obj = datetime.strptime(fecha_fin, "%Y-%m-%d").date()
 
                 if fecha_fin_obj < fecha_inicio_obj:
                     messages.error(request, "La fecha de fin no puede ser anterior a la fecha de inicio.")
                 else:
-                    actividad = ActividadDeportiva.objects.create(
-                        titulo=titulo,
-                        tipo=tipo,
-                        fecha_inicio=fecha_inicio_obj,
-                        fecha_fin=fecha_fin_obj,
-                        descripcion=descripcion
-                    )
+                    # =======================================================
+                    # INICIO DE LA NUEVA VALIDACIÓN (Solo por fecha_inicio)
+                    # =======================================================
+                    
+                    actividades_en_conflicto = ActividadDeportiva.objects.filter(
+                        equipos__id__in=equipos_ids,    # De los equipos seleccionados
+                        tipo=tipo,                      # Y que sea del MISMO tipo
+                        fecha_inicio=fecha_inicio_obj   # Y que tenga EXACTAMENTE la misma fecha de inicio
+                    ).distinct() 
 
-                    equipos = Equipo.objects.filter(id__in=equipos_ids)
-                    actividad.equipos.set(equipos)
+                    if actividades_en_conflicto.exists():
+                        # ¡Conflicto!
+                        try:
+                            tipo_display = dict(ActividadTipo.choices).get(tipo, tipo)
+                        except:
+                            tipo_display = tipo
 
-                    messages.success(request, f"Actividad '{titulo}' creada correctamente.")
-                    return redirect("actividades_lista")
+                        nombres_equipos_en_conflicto = list(Equipo.objects.filter(
+                            actividades__in=actividades_en_conflicto,
+                            id__in=equipos_ids
+                        ).distinct().values_list('nombre', flat=True))
+
+                        messages.error(request, 
+                            f"No se puede crear la actividad. "
+                            f"Uno o más equipos ya tienen una actividad de tipo '{tipo_display}' "
+                            f"programada para el {fecha_inicio_obj.strftime('%d-%m-%Y')}. "
+                            f"(Equipos en conflicto: {', '.join(nombres_equipos_en_conflicto)})"
+                        )
+                    
+                    else:
+                        # =======================================================
+                        # FIN DE LA VALIDACIÓN
+                        # =======================================================
+                        
+                        actividad = ActividadDeportiva.objects.create(
+                            titulo=titulo,
+                            tipo=tipo,
+                            fecha_inicio=fecha_inicio_obj,
+                            fecha_fin=fecha_fin_obj, # Guardamos la fecha_fin (sea la de inicio o la ingresada)
+                            descripcion=descripcion
+                        )
+
+                        equipos = Equipo.objects.filter(id__in=equipos_ids)
+                        actividad.equipos.set(equipos)
+
+                        messages.success(request, f"Actividad '{titulo}' creada correctamente.")
+                        return redirect("actividades_lista")
 
             except ValueError:
                 messages.error(request, "Formato de fecha inválido.")
             except Exception as e:
                 messages.error(request, f"Error al crear la actividad: {str(e)}")
 
+    # --- Código para la petición GET ---
     equipos = Equipo.objects.select_related("categoria").order_by("categoria__slug", "nombre")
     tipos = ActividadTipo.choices
 
@@ -859,21 +899,26 @@ def actividades_crear(request):
         "modo": "crear"
     })
 
-
 @login_required
 def actividades_editar(request, actividad_id):
+    
+    # --- Imports ---
+    # Los ponemos aquí para que estén definidos tanto para GET como para POST
+    # y así evitar el NameError.
+    from .models import ActividadTipo, ActividadDeportiva, Equipo
+    from datetime import datetime
+
+    # --- Permisos y carga del objeto ---
     if not _es_admin_equipo(request.user):
         messages.error(request, "No tienes permisos para editar actividades deportivas.")
         return redirect("actividades_lista")
-
-    from .models import ActividadTipo
-    from datetime import datetime
 
     actividad = get_object_or_404(
         ActividadDeportiva.objects.prefetch_related("equipos"),
         pk=actividad_id
     )
 
+    # --- Lógica POST (Guardar cambios) ---
     if request.method == "POST":
         titulo = request.POST.get("titulo", "").strip()
         tipo = request.POST.get("tipo", "")
@@ -886,36 +931,79 @@ def actividades_editar(request, actividad_id):
             messages.error(request, "El título es obligatorio.")
         elif not tipo:
             messages.error(request, "Debes seleccionar un tipo de actividad.")
-        elif not fecha_inicio or not fecha_fin:
-            messages.error(request, "Las fechas de inicio y fin son obligatorias.")
+        elif not fecha_inicio:
+            messages.error(request, "La fecha de inicio es obligatoria.")
         elif not equipos_ids:
             messages.error(request, "Debes seleccionar al menos un equipo.")
         else:
             try:
                 fecha_inicio_obj = datetime.strptime(fecha_inicio, "%Y-%m-%d").date()
-                fecha_fin_obj = datetime.strptime(fecha_fin, "%Y-%m-%d").date()
+                
+                # Si fecha_fin viene vacía, la hacemos igual a fecha_inicio
+                if not fecha_fin:
+                    fecha_fin_obj = fecha_inicio_obj
+                else:
+                    fecha_fin_obj = datetime.strptime(fecha_fin, "%Y-%m-%d").date()
 
                 if fecha_fin_obj < fecha_inicio_obj:
                     messages.error(request, "La fecha de fin no puede ser anterior a la fecha de inicio.")
                 else:
-                    actividad.titulo = titulo
-                    actividad.tipo = tipo
-                    actividad.fecha_inicio = fecha_inicio_obj
-                    actividad.fecha_fin = fecha_fin_obj
-                    actividad.descripcion = descripcion
-                    actividad.save()
+                    
+                    # =======================================================
+                    # INICIO DE LA VALIDACIÓN DE SOLAPAMIENTO (EDITAR)
+                    # =======================================================
+                    
+                    actividades_en_conflicto = ActividadDeportiva.objects.filter(
+                        equipos__id__in=equipos_ids,    # De los equipos seleccionados
+                        tipo=tipo,                      # Y que sea del MISMO tipo
+                        fecha_inicio=fecha_inicio_obj   # Y que tenga la MISMA fecha de inicio
+                    ).exclude(pk=actividad_id).distinct() # ¡Excluye esta misma actividad!
 
-                    equipos = Equipo.objects.filter(id__in=equipos_ids)
-                    actividad.equipos.set(equipos)
+                    if actividades_en_conflicto.exists():
+                        # ¡Conflicto!
+                        try:
+                            tipo_display = dict(ActividadTipo.choices).get(tipo, tipo)
+                        except:
+                            tipo_display = tipo
 
-                    messages.success(request, f"Actividad '{titulo}' actualizada correctamente.")
-                    return redirect("actividades_lista")
+                        nombres_equipos_en_conflicto = list(Equipo.objects.filter(
+                            actividades__in=actividades_en_conflicto,
+                            id__in=equipos_ids
+                        ).distinct().values_list('nombre', flat=True))
+
+                        messages.error(request, 
+                            f"No se pueden guardar los cambios. "
+                            f"Uno o más equipos ya tienen una actividad de tipo '{tipo_display}' "
+                            f"programada para el {fecha_inicio_obj.strftime('%d-%m-%Y')}. "
+                            f"(Equipos en conflicto: {', '.join(nombres_equipos_en_conflicto)})"
+                        )
+                    
+                    else:
+                        # =======================================================
+                        # FIN DE LA VALIDACIÓN / INICIO DEL GUARDADO
+                        # =======================================================
+                        
+                        actividad.titulo = titulo
+                        actividad.tipo = tipo
+                        actividad.fecha_inicio = fecha_inicio_obj
+                        actividad.fecha_fin = fecha_fin_obj
+                        actividad.descripcion = descripcion
+                        actividad.save() 
+
+                        equipos = Equipo.objects.filter(id__in=equipos_ids)
+                        actividad.equipos.set(equipos) 
+
+                        messages.success(request, f"Actividad '{titulo}' actualizada correctamente.")
+                        return redirect("actividades_lista")
 
             except ValueError:
                 messages.error(request, "Formato de fecha inválido.")
             except Exception as e:
                 messages.error(request, f"Error al actualizar la actividad: {str(e)}")
 
+    # --- Lógica GET (Cargar el formulario) ---
+    # Esta parte se ejecuta si es un GET, o si el POST falla por una validación
+    
     equipos = Equipo.objects.select_related("categoria").order_by("categoria__slug", "nombre")
     tipos = ActividadTipo.choices
     equipos_seleccionados = list(actividad.equipos.values_list("id", flat=True))
@@ -930,27 +1018,44 @@ def actividades_editar(request, actividad_id):
 
 
 @login_required
-def actividades_eliminar(request, actividad_id):
-    if request.method != "POST":
-        return redirect("actividades_lista")
-
+def actividad_cancelar(request, actividad_id):
+    """
+    Muestra un formulario (GET) para pedir un motivo de cancelación
+    y procesa la cancelación (POST).
+    """
     if not _es_admin_equipo(request.user):
-        messages.error(request, "No tienes permisos para eliminar actividades deportivas.")
+        messages.error(request, "No tienes permisos para esta acción.")
         return redirect("actividades_lista")
 
     actividad = get_object_or_404(ActividadDeportiva, pk=actividad_id)
-    
-    from .models import Asistencia
-    num_asistencias = Asistencia.objects.filter(actividad=actividad).count()
-    
-    if num_asistencias > 0:
-        messages.warning(request, f"No se puede eliminar la actividad '{actividad.titulo}' porque tiene {num_asistencias} asistencia(s) registrada(s).")
+
+    # Evitar que se cancele algo que ya está cancelado
+    if actividad.cancelada:
+        messages.warning(request, f"La actividad '{actividad.titulo}' ya está cancelada.")
         return redirect("actividades_lista")
 
-    titulo = actividad.titulo
-    actividad.delete()
-    messages.success(request, f"Actividad '{titulo}' eliminada correctamente.")
-    return redirect("actividades_lista")
+    if request.method == "POST":
+        motivo = request.POST.get("motivo", "").strip()
+        
+        if not motivo:
+            # Si no escriben un motivo, mostramos un error EN LA MISMA PÁGINA
+            messages.error(request, "Debes ingresar un motivo para la cancelación.")
+            return render(request, "actividades/cancelar.html", {
+                "actividad": actividad
+            })
+        else:
+            # --- Aquí ocurre la cancelación ---
+            actividad.cancelada = True
+            actividad.motivo_cancelacion = motivo
+            actividad.save()
+            
+            messages.success(request, f"Actividad '{actividad.titulo}' cancelada correctamente.")
+            return redirect("actividades_lista")
+
+    # Si es un GET, solo muestra la página de confirmación/formulario
+    return render(request, "actividades/cancelar.html", {
+        "actividad": actividad
+    })
 
 
 @login_required
