@@ -3,14 +3,14 @@ from datetime import date
 from django import forms
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
-from .models import Perfil, PerfilTipo, Equipo, ActividadDeportiva, Jugador, Certificado
+from .models import Perfil, PerfilTipo, Equipo, ActividadDeportiva, Jugador, Certificado, RUN_CL, PHONE
 
 User = get_user_model()
 
 class UsuarioCrearForm(forms.Form):
     username = forms.CharField(
         label="Usuario",
-        max_length=150,
+        max_length=30,
         widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Usuario"}),
     )
     email = forms.EmailField(
@@ -50,23 +50,23 @@ class UsuarioCrearForm(forms.Form):
 
     primer_nombre = forms.CharField(
         label="Primer nombre",
-        max_length=40,
+        max_length=30,
         widget=forms.TextInput(attrs={"class": "form-control"}),
     )
     segundo_nombre = forms.CharField(
         label="Segundo nombre",
-        max_length=40,
+        max_length=30,
         required=False,
         widget=forms.TextInput(attrs={"class": "form-control"}),
     )
     apellido_paterno = forms.CharField(
         label="Apellido paterno",
-        max_length=40,
+        max_length=30,
         widget=forms.TextInput(attrs={"class": "form-control"}),
     )
     apellido_materno = forms.CharField(
         label="Apellido materno",
-        max_length=40,
+        max_length=30,
         widget=forms.TextInput(attrs={"class": "form-control"}),
     )
     
@@ -125,9 +125,9 @@ class UsuarioCrearForm(forms.Form):
         Valida que la edad del jugador sea coherente con la categoría del equipo.
         
         Reglas:
-        - Sub-14: jugadores menores de 14 años
-        - Sub-16: jugadores menores de 16 años
-        - Sub-18: jugadores menores de 18 años
+        - Sub-14: jugadores de 14 años o menos
+        - Sub-16: jugadores de 16 años o menos
+        - Sub-18: jugadores de 18 años o menos
         """
         if not fecha_nacimiento or not equipo:
             return None  # No validar si falta información
@@ -149,7 +149,7 @@ class UsuarioCrearForm(forms.Form):
             # Si la categoría no tiene restricción de edad, no validar
             return None
         
-        # Validar edad
+        # Validar edad - CORREGIDO: ahora permite la edad exacta de la categoría
         if edad > edad_maxima:
             raise ValidationError(
                 f"El jugador tiene {edad} años. No puede estar en la categoría {nombre_categoria} "
@@ -171,6 +171,30 @@ class UsuarioCrearForm(forms.Form):
         if e and User.objects.filter(email=e).exists():
             raise forms.ValidationError("Ese correo ya está en uso.")
         return e
+    
+    def clean_run(self):
+        """Validar formato de RUN usando el validador del modelo"""
+        run = self.cleaned_data.get("run")
+        if run:
+            try:
+                RUN_CL(run)
+            except ValidationError as e:
+                raise forms.ValidationError(e.message)
+        return run
+    
+    def clean_telefono(self):
+        """Validar formato de teléfono usando el validador del modelo"""
+        telefono = self.cleaned_data.get("telefono")
+        if telefono:
+            # Limpiar espacios y guiones para validación
+            telefono_limpio = telefono.replace(" ", "").replace("-", "")
+            try:
+                PHONE(telefono_limpio)
+            except ValidationError as e:
+                raise forms.ValidationError(e.message)
+            # Retornar el teléfono limpio sin espacios
+            return telefono_limpio
+        return telefono
 
     def clean_password1(self):
         """✅ VALIDACIÓN DE COMPLEJIDAD DE CONTRASEÑA"""

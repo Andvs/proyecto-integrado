@@ -438,16 +438,16 @@
       
       if (infoCategoria) {
         categoriaValor.innerHTML = `<span class="categoria-badge ${infoCategoria.clase}">${infoCategoria.nombre}</span>`;
-        edadRequerida.textContent = `Edad máxima permitida: ${infoCategoria.maxEdad - 1} años`;
+        edadRequerida.textContent = `Edad máxima permitida: ${infoCategoria.maxEdad} años`;
         categoriaInfo.style.display = 'block';
         
         // Validar si hay incompatibilidad
         if (fechaNac) {
           const edad = calcularEdad(fechaNac);
-          if (edad >= infoCategoria.maxEdad) {
+          if (edad > infoCategoria.maxEdad) {
             mensajeAdvertencia.textContent = 
               `El jugador tiene ${edad} años y no puede estar en la categoría ${infoCategoria.nombre} ` +
-              `(edad máxima: ${infoCategoria.maxEdad - 1} años).`;
+              `(edad máxima: ${infoCategoria.maxEdad} años).`;
             advertenciaEdad.style.display = 'block';
           }
         }
