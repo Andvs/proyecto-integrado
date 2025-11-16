@@ -16,6 +16,7 @@
   .carousel-item { height: 32rem; }
   .marketing .col-lg-4 { margin-bottom: 1.5rem; text-align: center; }
   .marketing .col-lg-4 p { margin-right: .75rem; margin-left: .75rem; }
+  .marketing .col-lg-4 img { object-fit: cover; }
   .featurette-divider { margin: 5rem 0; }
   .featurette-heading { letter-spacing: -.05rem; }
 
@@ -96,10 +97,7 @@
 
     <div class="carousel-inner">
       <div class="carousel-item active">
-        <svg class="bd-placeholder-img" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg"
-            aria-hidden="true" preserveAspectRatio="xMidYMid slice">
-          <rect width="100%" height="100%" fill="var(--bs-secondary-color)"></rect>
-        </svg>
+        <img src="{% static 'img/equipo.jpg' %}" class="d-block w-100" alt="Sur Volley Club" style="height: 32rem; object-fit: cover;">
         <div class="container">
           <div class="carousel-caption text-start">
             <h1>Bienvenido a Sur Volley Club</h1>
@@ -110,10 +108,7 @@
       </div>
 
       <div class="carousel-item">
-        <svg class="bd-placeholder-img" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg"
-            aria-hidden="true" preserveAspectRatio="xMidYMid slice">
-          <rect width="100%" height="100%" fill="var(--bs-secondary-color)"></rect>
-        </svg>
+        <img src="{% static 'img/equipo2.jpg' %}" class="d-block w-100" alt="Sub 14" style="height: 32rem; object-fit: cover;">
         <div class="container">
           <div class="carousel-caption">
             <h1>Nuestros Equipos</h1>
@@ -124,10 +119,7 @@
       </div>
 
       <div class="carousel-item">
-        <svg class="bd-placeholder-img" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg"
-            aria-hidden="true" preserveAspectRatio="xMidYMid slice">
-          <rect width="100%" height="100%" fill="var(--bs-secondary-color)"></rect>
-        </svg>
+        <img src="{% static 'img/equipo3.jpg' %}" class="d-block w-100" alt="Sub 16" style="height: 32rem; object-fit: cover;">
         <div class="container">
           <div class="carousel-caption text-end">
             <h1>Únete a nuestra comunidad</h1>
@@ -152,31 +144,19 @@
   <div class="container marketing">
     <div class="row">
       <div class="col-lg-4">
-        <svg class="bd-placeholder-img rounded-circle" width="140" height="140"
-            xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Placeholder"
-            preserveAspectRatio="xMidYMid slice">
-          <rect width="100%" height="100%" fill="var(--bs-secondary-color)"></rect>
-        </svg>
+        <img src="{% static 'img/user_icon.png' %}" class="rounded-circle" width="140" height="140" alt="Entrenadores">
         <h2 class="fw-normal">Entrenadores</h2>
         <p>Profesionales dedicados a la formación integral de nuestros jugadores.</p>
         <p><a class="btn btn-secondary" href="#">Ver más &raquo;</a></p>
       </div>
       <div class="col-lg-4">
-        <svg class="bd-placeholder-img rounded-circle" width="140" height="140"
-            xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Placeholder"
-            preserveAspectRatio="xMidYMid slice">
-          <rect width="100%" height="100%" fill="var(--bs-secondary-color)"></rect>
-        </svg>
+        <img src="{% static 'img/equipo.jpg' %}" class="rounded-circle" width="140" height="140" alt="Equipos">
         <h2 class="fw-normal">Equipos</h2>
         <p>Categorías para todas las edades, promoviendo la inclusión deportiva.</p>
         <p><a class="btn btn-secondary" href="#">Ver equipos &raquo;</a></p>
       </div>
       <div class="col-lg-4">
-        <svg class="bd-placeholder-img rounded-circle" width="140" height="140"
-            xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Placeholder"
-            preserveAspectRatio="xMidYMid slice">
-          <rect width="100%" height="100%" fill="var(--bs-secondary-color)"></rect>
-        </svg>
+        <img src="{% static 'img/equipo2.jpg' %}" class="rounded-circle" width="140" height="140" alt="Eventos">
         <h2 class="fw-normal">Eventos</h2>
         <p>Participa en torneos y actividades del club durante todo el año.</p>
         <p><a class="btn btn-secondary" href="#">Calendario &raquo;</a></p>
