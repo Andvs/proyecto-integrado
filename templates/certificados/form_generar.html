@@ -1,0 +1,73 @@
+{% extends "inicio.html" %}
+
+{% block page_title %}{% if modo == "crear" %}Nuevo Certificado{% endif %}{% endblock %}
+
+{% block main %}
+
+<div class="container-fluid" style="max-width: 1100px;">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4 class="mb-0">{% if modo == "crear" %}Generar Certificados{% endif %}</h4>
+        <a href="{% url 'certificados_lista' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Volver
+        </a>
+    </div>
+
+    <form method="post" class="card card-soft p-3" id="formCertificados">
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+            <div class="alert alert-danger mb-3">{{ form.non_field_errors|striptags }}</div>
+        {% endif %}
+
+        <div class="row g-3">
+        <!-- Columna izquierda -->
+            <div class="col-12">
+                <!-- ===== Cuenta ===== -->
+                <div class="border rounded-3 p-3 mb-3 bg-white">
+                    <h6 class="text-uppercase text-muted mb-3">Certificados</h6>
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label">Prefijo Código</label>
+                                {{ form.prefijo_codigo }}
+                                {% if form.prefijo_codigo.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.prefijo_codigo.errors|striptags }}
+                                    </div>
+                                {% endif %}
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Actividad</label>
+                                {{ form.actividad }}
+                                {% if form.username.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.actividad.errors|striptags }}
+                                    </div>
+                                {% endif %}
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Jugadores</label>
+                                {{ form.jugadores }}
+                                {% if form.jugadores.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.jugadores.errors|striptags }}
+                                    </div>
+                                {% endif %}
+                        </div>
+                    </div>
+                </div>
+            <div class="mt-3 d-flex gap-2">
+                <button class="btn btn-primary" type="submit">
+                    {% if modo == "crear" %}
+                        <i class="bi bi-check2-circle"></i> Crear{% else %}<i class="bi bi-save"></i> Guardar{% endif %}
+                </button>
+                <a href="{% url 'certificados_lista' %}" class="btn btn-outline-secondary">Cancelar</a>
+            </div>
+    </form>
+</div>
+
+
+            
+            <button type="submit">Generar certificados</button>
+    </form>
+
+{% endblock %}

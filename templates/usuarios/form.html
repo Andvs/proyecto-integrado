@@ -67,7 +67,7 @@
     </a>
   </div>
 
-  <form method="post" class="card card-soft p-3" id="formUsuario">
+  <form method="POST" class="card card-soft p-3" id="formUsuario">
     {% csrf_token %}
 
     {% if form.non_field_errors %}
@@ -255,7 +255,8 @@
                       {% endfor %}
                     </div>
                   {% endif %}
-                  
+              
+          
                   <!-- ✅ Indicador de edad calculada -->
                   <div id="edadIndicador" class="edad-info" style="display: none;">
                     <i class="bi bi-calendar-check"></i> 
@@ -263,7 +264,7 @@
                   </div>
                 </div>
               {% endif %}
-              
+        {% endif %}
               {% if form.tipo_sangre %}
                 <div class="col-12 col-md-6">
                   <label class="form-label">Tipo de sangre</label>
@@ -300,10 +301,23 @@
                   <i class="bi bi-exclamation-triangle"></i> 
                   <strong>Advertencia:</strong> <span id="mensajeAdvertencia"></span>
                 </div>
+                {% if form.colegio %}
+                <div class="col-12">
+                  <label class="form-label">Colegio</label>
+                  {{ form.colegio }}
+                  {% if form.colegio.errors %}<div class="invalid-feedback d-block">{{ form.colegio.errors|striptags }}</div>{% endif %}
+                </div>
+                {% endif %}
+                {% if form.curso %}
+                  <div class="col-12 col-md-6">
+                    <label class="form-label">Curso</label>
+                    {{ form.curso }}
+                    {% if form.curso.errors %}<div class="invalid-feedback d-block">{{ form.curso.errors|striptags }}</div>{% endif %}
+                  </div>
+                {% endif %}
               </div>
             </div>
           </div>
-        {% endif %}
       </div>
     </div>
 
@@ -324,6 +338,8 @@
   const FIELD_FECHA = document.getElementById("id_fecha_nacimiento");
   const FIELD_SANGRE = document.getElementById("id_tipo_sangre");
   const FIELD_EQUIPO = document.getElementById("id_equipo");
+  const FIELD_COLEGIO = document.getElementById("id_colegio");
+  const FIELD_CURSO = document.getElementById("id_curso")
   const requiredFecha = document.getElementById("requiredFecha");
   const emailField = document.getElementById("id_email");
   const emailFeedback = document.getElementById("email-error-feedback");

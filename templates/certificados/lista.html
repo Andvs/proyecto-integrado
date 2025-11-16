@@ -1,0 +1,112 @@
+{% extends "inicio.html" %}
+{% load static %}
+
+{% block page_title %}Certificados{% endblock %}
+
+{% block main %}
+<div class="container-fluid">
+    <!-- Barra superior: búsqueda + agregar -->
+    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+    <!-- Búsqueda -->
+        <form method="get" class="flex-grow-1" style="max-width: 650px;">
+            <div class="input-group">
+                <input type="text" name="q" class="form-control"
+                        placeholder="Buscar por código, nombre de jugador…"
+                        value="{{ q|default:'' }}">
+                {% if q %}
+                    <a href="{% url 'certificados_lista' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-x-lg"></i>
+                    </a>
+                {% endif %}
+                <button class="btn btn-primary" type="submit">
+                    <i class="bi bi-search"></i> Buscar
+                </button>
+            </div>
+        </form>
+        <a href="{% url 'certificado_generar' %}" class="btn btn-primary">
+            <i class="bi bi-plus-lg"></i> Generar certificados
+        </a>
+    </div>
+
+<!-- Tabla -->
+<div class="card card-soft">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Código</th>
+                        <th>Fecha</th>
+                        <th>Jugador</th>
+                        <th>Actividad</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in certificados %}
+                        <tr>
+                            <td>{{ c.codigo }}</td>
+                            <td>{{ c.fecha_hora_emision }}</td>
+                            <td>{{ c.jugador.perfil.nombre_completo }}</td>
+                            <td>{{ c.titulo_actividad }}</td>
+                            <td>
+                            <a href="{% url 'certificado_detalle' c.pk %}">Ver</a> |
+                            <a href="{% url 'certificado_pdf' c.pk %}?download=1">Descargar PDF</a>
+                            </td>
+                        </tr>
+                        {% empty %}
+            <tr><td colspan="5">No hay certificados.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {% if page_obj.paginator.num_pages > 1 %}
+        <div class="card-footer d-flex justify-content-between align-items-center">
+            <small class="text-muted">
+            Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+            ({{ page_obj.paginator.count }} certificado {% if page_obj.paginator.count != 1 %}es{% endif %})
+            </small>
+            <nav>
+            <ul class="pagination mb-0">
+
+                {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?q={{ q }}&estado={{ estado }}&page={{ page_obj.previous_page_number }}">Anterior</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link">Anterior</span></li>
+                {% endif %}
+
+                {% for i in page_obj.paginator.page_range %}
+                {% if i == page_obj.number %}
+                    <li class="page-item active"><span class="page-link">{{ i }}</span></li>
+
+                {% elif i <= 2 %}
+                    <li class="page-item"><a class="page-link" href="?q={{ q }}&estado={{ estado }}&page={{ i }}">{{ i }}</a></li>
+
+                {% elif i > page_obj.paginator.num_pages|add:"-2" %}
+                    <li class="page-item"><a class="page-link" href="?q={{ q }}&estado={{ estado }}&page={{ i }}">{{ i }}</a></li>
+
+                {% elif i >= page_obj.number|add:"-1" and i <= page_obj.number|add:"1" %}
+                    <li class="page-item"><a class="page-link" href="?q={{ q }}&estado={{ estado }}&page={{ i }}">{{ i }}</a></li>
+
+                {% elif i == 3 or i == page_obj.paginator.num_pages|add:"-2" %}
+                    <li class="page-item disabled"><span class="page-link">…</span></li>
+                {% endif %}
+                {% endfor %}
+
+                {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?q={{ q }}&estado={{ estado }}&page={{ page_obj.next_page_number }}">Siguiente</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link">Siguiente</span></li>
+                {% endif %}
+
+            </ul>
+            </nav>
+        </div>
+    {% endif %}
+
+    
+{% endblock %}

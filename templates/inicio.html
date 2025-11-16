@@ -49,12 +49,32 @@
       <img src="{% static 'img/nuevo_logo.png' %}" alt="Logo">
       <span>Sur Volley</span>
     </div>
+    <div class="d-flex align-items-center gap-2">
+      <a class="btn btn-light btn-sm rounded-circle" href="#">
+          <i class="bi bi-person-circle"></i>
+        </a>
+        <span>
+          {% if user.is_authenticated %}
+            {% if user.perfil %}
+              {{ user.perfil.primer_nombre }} {{ user.perfil.apellido_paterno }}
+              {% if user.perfil.tipo %} · {{ user.perfil.get_tipo_display }}{% endif %}
+            {% elif user.is_superuser %}
+              Hola, {{ user.username }} · Superusuario
+            {% else %}
+              Hola, {{ user.username }}
+            {% endif %}
+          {% else %}
+            Hola
+          {% endif %}
+        </span>
+        
+      </div>
 
     <nav class="menu">
       <div class="section-title">General</div>
 
       <a href="{% url 'dashboard' %}"
-         class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+        class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
         <i class="bi bi-grid-1x2"></i><span>Dashboard</span>
       </a>
 
@@ -70,6 +90,7 @@
           <a href="#"><i class="bi bi-calendar-event"></i><span>Actividades</span></a>
           <a href="#"><i class="bi bi-clipboard-check"></i><span>Asistencias</span></a>
           <a href="#"><i class="bi bi-graph-up"></i><span>Reportes</span></a>
+          <a href="#"><i class="bi bi-graph-up"></i><span>Certificados</span></a>
         {% elif user.perfil %}
           {% with tipo=user.perfil.tipo %}
             {# ======================= ADMIN / EQUIPO ADMIN ======================= #}
@@ -94,6 +115,9 @@
                 <i class="bi bi-clipboard-check"></i><span>Asistencias</span>
               </a>
               <a href="#"><i class="bi bi-graph-up"></i><span>Reportes</span></a>
+              <a href="{% url 'certificados_lista' %}" class="{% if request.resolver_match.url_name == 'certificados_lista' %}active{% endif %}">
+                <i class="bi bi-graph-up"></i><span>Certificados</span>
+              </a>
             {% endif %}
 
             {# ============================ ENTRENADOR ============================ #}
@@ -115,6 +139,9 @@
             {% if tipo == "SOCIO" %}
               <div class="section-title">Socio</div>
               <a href="{% url 'dashboard' %}"><i class="bi bi-info-circle"></i><span>Comunicados</span></a>
+              <a href="{% url 'certificados_lista' %}" class="{% if request.resolver_match.url_name == 'certificados_lista' %}active{% endif %}">
+                <i class="bi bi-graph-up"></i><span>Certificados</span>
+              </a>
             {% endif %}
           {% endwith %}
         {% endif %}
@@ -128,37 +155,6 @@
 
   <!-- CONTENIDO -->
   <section class="page">
-    <div class="topbar-inner">
-      <button class="btn btn-sm btn-outline-secondary d-lg-none" type="button"
-              onclick="document.body.classList.toggle('sb-open')">
-        <i class="bi bi-list"></i>
-      </button>
-
-      <div class="search">
-        <input class="form-control" placeholder="{% block page_placeholder %}Buscar...{% endblock %}">
-      </div>
-
-      <div class="d-flex align-items-center gap-2">
-        <span class="text-muted small d-none d-md-inline">
-          {% if user.is_authenticated %}
-            {% if user.perfil %}
-              Hola, {{ user.perfil.primer_nombre }} {{ user.perfil.apellido_paterno }}
-              {% if user.perfil.tipo %} · {{ user.perfil.get_tipo_display }}{% endif %}
-            {% elif user.is_superuser %}
-              Hola, {{ user.username }} · Superusuario
-            {% else %}
-              Hola, {{ user.username }}
-            {% endif %}
-          {% else %}
-            Hola
-          {% endif %}
-        </span>
-        <a class="btn btn-light btn-sm rounded-circle" href="#">
-          <i class="bi bi-person-circle"></i>
-        </a>
-      </div>
-    </div>
-
     <div class="content">
       {% block main %}{% endblock %}
     </div>

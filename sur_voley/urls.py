@@ -1,5 +1,7 @@
 from django.contrib import admin
 from django.urls import path
+from django.conf import settings
+from django.conf.urls.static import static
 
 from app import views as v
 
@@ -48,4 +50,14 @@ urlpatterns = [
     path("asistencias/<int:asistencia_id>/editar/", v.asistencias_editar, name="asistencias_editar"),
     path("asistencias/<int:asistencia_id>/eliminar/", v.asistencias_eliminar, name="asistencias_eliminar"),
     path("asistencias/actividad/<int:actividad_id>/jugadores/", v.asistencias_jugadores_actividad, name="asistencias_jugadores_actividad"),
+    
+    # Certificados
+    path("certificados/", v.certificados_lista, name="certificados_lista"),
+    path("certificados/generar/", v.certificado_generar, name="certificado_generar"),
+    path("certificados/<int:certificado_id>/", v.certificado_detalle, name="certificado_detalle"),
+    path("certificados/<int:certificado_id>/pdf/", v.certificado_pdf, name="certificado_pdf"),
+
 ]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -119,6 +119,16 @@
               <div class="form-text">Asigna o cambia el equipo del jugador.</div>
               {% if form.equipo.errors %}<div class="invalid-feedback d-block">{{ form.equipo.errors|striptags }}</div>{% endif %}
             </div>
+            <div class="col-12">
+              <label class="form-label">Colegio</label>
+              {{ form.colegio }}
+              {% if form.colegio.errors %}<div class="invalid-feedback d-block">{{ form.colegio.errors|striptags }}</div>{% endif %}
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label">Apellido materno</label>
+              {{ form.apellido_materno }}
+              {% if form.apellido_materno.errors %}<div class="invalid-feedback d-block">{{ form.apellido_materno.errors|striptags }}</div>{% endif %}
+            </div>
           </div>
         </div>
       </div>

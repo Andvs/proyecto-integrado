@@ -3,10 +3,9 @@ from datetime import date
 from django import forms
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
-from .models import Perfil, PerfilTipo, Equipo
+from .models import Perfil, PerfilTipo, Equipo, ActividadDeportiva, Jugador, Certificado
 
 User = get_user_model()
-
 
 class UsuarioCrearForm(forms.Form):
     username = forms.CharField(
@@ -82,7 +81,7 @@ class UsuarioCrearForm(forms.Form):
         label="Tipo de sangre",
         required=False,
         choices=[("", "— Selecciona —"), ("A+", "A+"), ("A-", "A-"), ("B+", "B+"), ("B-", "B-"),
-                 ("AB+", "AB+"), ("AB-", "AB-"), ("O+", "O+"), ("O-", "O-")],
+                ("AB+", "AB+"), ("AB-", "AB-"), ("O+", "O+"), ("O-", "O-")],
         widget=forms.Select(attrs={"class": "form-select"})
     )
     
@@ -93,6 +92,22 @@ class UsuarioCrearForm(forms.Form):
         widget=forms.Select(attrs={"class": "form-select"}),
         help_text="Opcional. Si se asigna, la edad debe coincidir con la categoría."
     )
+
+    colegio = forms.CharField(
+        label="Colegio",
+        max_length=50,
+        required=False,
+        widget=forms.TextInput(attrs={"class": "form-control"}),
+    )
+
+    curso = forms.ChoiceField(
+        label="Curso",
+        required=False,
+        choices=[("", "— Selecciona —"), ("Octavo Básico", "Octavo Básico"), ("Primero Medio", "Primero Medio"), ("Segundo Medio", "Segundo Medio"), ("Tercero Medio", "Tercero Medio"),("Cuarto Medio", "Cuarto Medio")],
+        widget=forms.Select(attrs={"class": "form-select"})
+    )
+    
+
 
     # === MÉTODO AUXILIAR PARA CALCULAR EDAD ===
     def calcular_edad(self, fecha_nacimiento):
@@ -368,5 +383,31 @@ class UsuarioEditarForm(UsuarioCrearForm):
         return cd
 
 
+class CertificadoGenerarForm(forms.Form):
+    actividad = forms.ModelChoiceField(
+        queryset=ActividadDeportiva.objects.all().order_by("-fecha_inicio"),
+        label="Actividad",
+        required=True
+    )
+    jugadores = forms.ModelMultipleChoiceField(
+        queryset=Jugador.objects.filter(activo=True).select_related("perfil", "equipo"),
+        widget=forms.CheckboxSelectMultiple,
+        label="Jugadores",
+        required=True
+    )
+    prefijo_codigo = forms.CharField(max_length=20, required=False, label="Prefijo de código (opcional)")
 
+    def clean(self):
+        cleaned = super().clean()
+        actividad = cleaned.get("actividad")
+        jugadores = cleaned.get("jugadores")
 
+        if actividad and jugadores:
+            equipos_participantes = set(actividad.equipos.values_list("id", flat=True))
+            invalid = [j for j in jugadores if (j.equipo_id not in equipos_participantes)]
+            if invalid:
+                nombres = ", ".join([j.perfil.nombre_completo for j in invalid])
+                raise forms.ValidationError(
+                    f"Los siguientes jugadores no pertenecen a equipos participantes de la actividad: {nombres}"
+                )
+        return cleaned

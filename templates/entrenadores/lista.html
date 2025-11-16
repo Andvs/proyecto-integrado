@@ -14,8 +14,8 @@
         <label class="form-label small">Buscar</label>
         <div class="input-group">
           <input type="text" name="q" class="form-control"
-                 placeholder="Buscar por nombre, RUN o usuario…"
-                 value="{{ q|default:'' }}">
+                  placeholder="Buscar por nombre, RUN o usuario…"
+                  value="{{ q|default:'' }}">
           {% if q %}
             <a href="{% url 'entrenadores_lista' %}" class="btn btn-outline-secondary">
               <i class="bi bi-x-lg"></i>

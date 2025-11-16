@@ -41,3 +41,12 @@
 # admin.site.register(Asistencia,AsistenciaAdmin)
 # admin.site.register(Cargo,CargoAdmin)
 # admin.site.register(EquipoAdministrativo,EquipoAdministrativoAdmin)
+
+from django.contrib import admin
+from .models import Certificado
+
+@admin.register(Certificado)
+class CertificadoAdmin(admin.ModelAdmin):
+    list_display = ("codigo", "fecha_hora_emision", "jugador", "titulo_actividad")
+    search_fields = ("codigo", "jugador__perfil__primer_nombre", "jugador__perfil__segundo_nombre", "jugador__perfil__apellido_paterno", "jugador__perfil__apellido_materno", "titulo_actividad")
+    readonly_fields = ("archivo", "fecha_hora_emision")

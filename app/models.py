@@ -79,7 +79,7 @@ class Perfil(TimeStampedModel):
 
     # Nombres y apellidos (Chile)
     primer_nombre    = models.CharField(max_length=40)
-    segundo_nombre   = models.CharField(max_length=40, blank=True)  # opcional
+    segundo_nombre   = models.CharField(max_length=40, null=True, blank=True)
     apellido_paterno = models.CharField(max_length=40)
     apellido_materno = models.CharField(max_length=40)
 
@@ -170,6 +170,12 @@ class TipoSangre(models.TextChoices):
     O_POS = "O+", "O+"
     O_NEG = "O-", "O-"
 
+class CursoGrado(models.TextChoices):
+    OCTAVO_BAS = "Octavo Básico", "Octavo Básico"
+    PRIMERO_MED = "Primero Medio", "Primero Medio"
+    SEGUNDO_MED = "Segundo Medio", "Segundo Medio"
+    TERCERO_MED = "Tercero Medio", "Tercero Medio"
+    CUARTO_MED = "Cuarto Medio", "Cuarto Medio"
 
 class Jugador(TimeStampedModel):
     """
@@ -185,9 +191,12 @@ class Jugador(TimeStampedModel):
         related_name="jugador",
     )
     fecha_nacimiento = models.DateField(null=True, blank=True)
+    colegio = models.CharField(max_length=50, verbose_name="Colegio/Establecimiento", null=True, blank=True)
+    curso = models.CharField(max_length=15, choices=CursoGrado.choices)
     equipo = models.ForeignKey(Equipo, on_delete=models.PROTECT, related_name="jugadores", db_index=True, null=True, blank=True)
     tipo_sangre = models.CharField(max_length=3, choices=TipoSangre.choices, null=True, blank=True)
     activo = models.BooleanField(default=True, db_index=True)
+    
 
     class Meta:
         ordering = ["equipo__categoria__slug", "equipo__nombre", "perfil__apellido_paterno", "perfil__apellido_materno"]
@@ -228,6 +237,7 @@ class ActividadDeportiva(TimeStampedModel):
     fecha_inicio = models.DateField()
     fecha_fin = models.DateField()
     descripcion = models.TextField(blank=True)
+    lugar = models.CharField(max_length=200, blank=True, null=True, verbose_name="Lugar")
     cancelada = models.BooleanField(default=False)
     motivo_cancelacion = models.TextField(blank=True, null=True, verbose_name="Motivo de Cancelación")
     equipos = models.ManyToManyField(Equipo, through="EquipoActividad", related_name="actividades")
@@ -304,3 +314,21 @@ class Asistencia(TimeStampedModel):
 
     def __str__(self):
         return f"Asistencia {self.jugador.perfil.nombre_completo} · {self.actividad} · {self.get_estado_display()}"
+
+class Certificado(TimeStampedModel):
+    codigo = models.CharField(max_length=36, unique=True)
+    jugador = models.ForeignKey(Jugador, on_delete=models.PROTECT, related_name="certificados_emitidos")
+    actividad = models.ForeignKey(ActividadDeportiva, on_delete=models.PROTECT, related_name="certificados")
+    titulo_actividad = models.CharField(max_length=200)
+    fecha_actividad_inicio = models.DateField(null=True, blank=True)
+    fecha_actividad_fin = models.DateField(null=True, blank=True)
+    lugar = models.CharField(max_length=200, blank=True, null=True)
+    archivo = models.FileField(upload_to="certificados/%Y/%m/%d/")
+    fecha_hora_emision = models.DateTimeField()
+    
+    class Meta:
+        ordering = ["-fecha_hora_emision"]
+    
+    def __str__(self):
+        return f"{self.codigo} · {self.jugador.perfil.nombre_completo} · {self.titulo_actividad}"
+    

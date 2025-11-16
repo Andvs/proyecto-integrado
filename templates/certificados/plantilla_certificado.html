@@ -1,0 +1,150 @@
+<!doctype html>
+{% load static %}
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        @page {
+            size: A4;
+            margin: 2.5cm;
+        }
+
+        body {
+            font-family: "Helvetica", Arial, sans-serif;
+            font-size: 12pt;
+        }
+
+        .header {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .logo-cell {
+            width: 80px;
+        }
+
+        #img-logo {
+            height: 60px;
+        }
+
+        .club-info {
+            font-size: 11pt;
+            text-align: left;
+        }
+
+        .date-place {
+            text-align: right;
+            margin-top: 40px;
+        }
+
+        .title {
+            text-align: center;
+            margin-top: 80px;
+            font-size: 16pt;
+            font-weight: bold;
+        }
+
+        .content {
+            margin-top: 60px;
+            text-align: justify;
+            line-height: 1.5;
+        }
+
+        .content p {
+            margin-bottom: 12px;
+        }
+
+        .signature-section {
+            margin-top: 80px;
+            text-align: center;
+        }
+
+        #img-firma {
+            height: 60px;
+            width: 150px;
+        }
+
+        .signature-line {
+            margin-top: 35px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Encabezado con logo y datos del club -->
+    <table class="header">
+        <tr>
+            <td class="logo-cell">
+                <img id="img-logo"
+                    src="{{ logo_url }}"
+                    alt="Logo Club Deportivo Sur Volley">
+            </td>
+            <td class="club-info">
+                <strong>Club Deportivo Sur Volley</strong><br>
+                Río Bueno – Chile<br>
+                Certificado de participación en actividad deportiva
+            </td>
+        </tr>
+    </table>
+
+    <!-- Lugar y fecha -->
+    <div class="date-place">
+    Río Bueno, {{ hoy_formateado }}
+</div>
+
+
+
+    <!-- Título -->
+    <div class="title">
+        CERTIFICADO
+    </div>
+
+    <!-- Cuerpo del certificado -->
+    <div class="content">
+        <p>
+            Yo, <strong>{{ jugador_nombre|upper }}</strong>,
+            estudiante de
+            {% if curso %}{{ curso }}{% else %}________{% endif %}
+            del establecimiento educacional
+            {% if colegio %}<strong>{{ colegio }}</strong>{% else %}________________{% endif %},
+            y jugador(a) del <strong>Club Deportivo Sur Volley</strong>,
+            certifico por medio de la presente que
+            {% if actividad_fecha_fin and actividad_fecha_fin != actividad_fecha_inicio %}
+                entre los días {{ actividad_fecha_inicio|date:"d/m/Y" }} y {{ actividad_fecha_fin|date:"d/m/Y" }}
+            {% else %}
+                el día {{ actividad_fecha_inicio|date:"d/m/Y" }}
+            {% endif %}
+            me encuentro participando en la actividad deportiva
+            denominada <strong>{{ actividad_titulo }}</strong>
+            (tipo: {{ actividad_tipo }}).
+        </p>
+
+        <p>
+            Este certificado tiene como finalidad justificar mi
+            inasistencia a clases en el establecimiento educacional
+            antes señalado, por motivo de participación en la
+            actividad deportiva organizada por el club.
+        </p>
+
+        {% if actividad_lugar %}
+        <p>
+            Lugar de la actividad: <strong>{{ actividad_lugar }}</strong>.
+        </p>
+        {% endif %}
+    </div>
+
+    <!-- Firma -->
+    <div class="signature-section">
+        <p>Atentamente,</p>
+
+        <div class="signature-line">
+            <img id="img-firma"
+                src="{{ firma_url }}"
+                alt="Firma responsable"><br>
+            ________________________________<br>
+            Responsable Club Deportivo Sur Volley
+        </div>
+    </div>
+
+</body>
+</html>

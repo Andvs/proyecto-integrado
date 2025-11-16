@@ -1,6 +1,6 @@
 # app/views.py - ARCHIVO COMPLETO CORREGIDO
+from django.templatetags.static import static
 from datetime import date
-
 from django.contrib import messages
 from django.contrib.auth import get_user_model, login, logout
 from django.contrib.auth.decorators import login_required
@@ -8,15 +8,34 @@ from django.contrib.auth.forms import AuthenticationForm
 from django.core.paginator import Paginator
 from django.db.models import Q, Count
 from django.shortcuts import get_object_or_404, redirect, render
-
-from .forms import UsuarioCrearForm, UsuarioEditarForm
+from django.http import HttpResponse, FileResponse
+from django.views import View
+# from weasyprint import HTML
+from django.template.loader import render_to_string
+from django.core.files.base import ContentFile
+from .forms import UsuarioCrearForm, UsuarioEditarForm, CertificadoGenerarForm
 from .models import (
     Perfil, PerfilTipo,
     ActividadDeportiva, Jugador, Equipo,
+    Certificado
 )
+from sur_voley.utils import render_to_pdf
+from django.utils import timezone
 
 User = get_user_model()
 
+# ==========================
+# Fecha en español (para certificados)
+# ==========================
+MESES_ES = [
+    "",  # ignorado (1 → enero)
+    "enero", "febrero", "marzo", "abril", "mayo", "junio",
+    "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+]
+
+def fecha_es(date_obj):
+    """Devuelve la fecha formateada '15 de abril de 2025' sin usar el filtro date (que falla con 'e')."""
+    return f"{date_obj.day} de {MESES_ES[date_obj.month]} de {date_obj.year}"
 
 # ==========================
 # Público
@@ -113,8 +132,8 @@ def dashboard(request):
             "total_equipos": Equipo.objects.count(),
             "total_actividades": ActividadDeportiva.objects.count(),
             "actividades_proximas": (ActividadDeportiva.objects
-                                     .filter(fecha_inicio__gte=hoy)
-                                     .order_by("fecha_inicio")[:8]),
+                                    .filter(fecha_inicio__gte=hoy)
+                                    .order_by("fecha_inicio")[:8]),
         })
         return render(request, "dashboard.html", ctx)
 
@@ -127,16 +146,16 @@ def dashboard(request):
             "total_equipos": Equipo.objects.count(),
             "total_actividades": ActividadDeportiva.objects.count(),
             "actividades_proximas": (ActividadDeportiva.objects
-                                     .filter(fecha_inicio__gte=hoy)
-                                     .order_by("fecha_inicio")[:8]),
+                                    .filter(fecha_inicio__gte=hoy)
+                                    .order_by("fecha_inicio")[:8]),
         })
 
     elif perfil.tipo == PerfilTipo.ENTRENADOR:
         equipos_ids = perfil.equipos_dirigidos.values_list("id", flat=True)
         actividades = (ActividadDeportiva.objects
-                       .filter(equipos__in=equipos_ids, fecha_inicio__gte=hoy)
-                       .order_by("fecha_inicio", "titulo")
-                       .distinct()[:10])
+                        .filter(equipos__in=equipos_ids, fecha_inicio__gte=hoy)
+                        .order_by("fecha_inicio", "titulo")
+                        .distinct()[:10])
         ctx.update({
             "mis_equipos": perfil.equipos_dirigidos.all(),
             "actividades_proximas": actividades,
@@ -171,8 +190,9 @@ def usuarios_lista(request):
     q = (request.GET.get("q") or "").strip()
 
     qs = (Perfil.objects
-          .select_related("user")
-          .order_by("apellido_paterno", "apellido_materno", "primer_nombre"))
+            .select_related("user")
+            .order_by("apellido_paterno", "apellido_materno", "primer_nombre")
+        )
 
     if q:
         qs = qs.filter(
@@ -198,7 +218,6 @@ def usuarios_crear(request):
         return redirect("usuarios_lista")
 
     form = UsuarioCrearForm(request.POST or None)
-
     if request.method == "POST" and form.is_valid():
         cd = form.cleaned_data
 
@@ -227,9 +246,11 @@ def usuarios_crear(request):
                     "fecha_nacimiento": cd.get("fecha_nacimiento"),
                     "tipo_sangre": cd.get("tipo_sangre") or None,
                     "equipo": cd.get("equipo") or None,
+                    "colegio": cd.get("colegio"),
+                    "curso": cd.get("curso"),
                 }
             )
-
+    
         messages.success(request, f"Usuario '{user.username}' creado correctamente.")
         return redirect("usuarios_lista")
 
@@ -257,6 +278,8 @@ def usuarios_editar(request, perfil_id):
         fecha_nacimiento=getattr(getattr(perfil, "jugador", None), "fecha_nacimiento", None),
         tipo_sangre=getattr(getattr(perfil, "jugador", None), "tipo_sangre", "") or "",
         equipo=getattr(getattr(perfil, "jugador", None), "equipo", None),
+        colegio=getattr(getattr(perfil,"jugador",None),"colegio",None),
+        curso=getattr(getattr(perfil,"jugador",None),"curso","")
     )
 
     form = UsuarioEditarForm(
@@ -291,6 +314,8 @@ def usuarios_editar(request, perfil_id):
                     "fecha_nacimiento": cd.get("fecha_nacimiento"),
                     "tipo_sangre": cd.get("tipo_sangre") or None,
                     "equipo": cd.get("equipo") or None,
+                    "colegio": cd.get("colegio"),
+                    "curso": cd.get("curso"),
                 }
             )
         else:
@@ -341,8 +366,8 @@ def jugadores_lista(request):
     estado = request.GET.get("estado", "")  # ✅ Filtro de estado
 
     qs = (Jugador.objects
-          .select_related("perfil__user", "equipo__categoria", "equipo__entrenador")
-          .order_by("perfil__apellido_paterno", "perfil__apellido_materno", "perfil__primer_nombre"))
+            .select_related("perfil__user", "equipo__categoria", "equipo__entrenador")
+            .order_by("perfil__apellido_paterno", "perfil__apellido_materno", "perfil__primer_nombre"))
 
     if q:
         qs = qs.filter(
@@ -392,6 +417,8 @@ def jugadores_editar(request, jugador_id):
         fecha_nacimiento=jugador.fecha_nacimiento,
         tipo_sangre=jugador.tipo_sangre or "",
         equipo=jugador.equipo,
+        colegio=jugador.colegio,
+        curso=jugador.curso,
     )
 
     form = UsuarioEditarForm(
@@ -426,6 +453,8 @@ def jugadores_editar(request, jugador_id):
         jugador.fecha_nacimiento = cd.get("fecha_nacimiento")
         jugador.tipo_sangre = cd.get("tipo_sangre") or None
         jugador.equipo = cd.get("equipo")
+        jugador.colegio = cd.get("colegio")
+        jugador.curso = cd.get("curso")
         jugador.save()
 
         messages.success(request, f"Jugador '{perfil.nombre_completo}' actualizado correctamente.")
@@ -1102,8 +1131,9 @@ def asistencias_lista(request):
     from .models import Asistencia, AsistenciaEstado
     
     qs = (Asistencia.objects
-          .select_related("jugador__perfil", "jugador__equipo", "actividad", "entrenador")
-          .order_by("-fecha_hora_marcaje"))
+            .select_related("jugador__perfil", "jugador__equipo", "actividad", "entrenador")
+            .order_by("-fecha_hora_marcaje")
+            )
 
     if es_entrenador and not request.user.is_superuser:
         qs = qs.filter(entrenador=perfil)
@@ -1362,3 +1392,130 @@ def asistencias_eliminar(request, asistencia_id):
     asistencia.delete()
     messages.success(request, f"Asistencia de {jugador_nombre} en '{actividad_titulo}' eliminada correctamente.")
     return redirect("asistencias_lista")
+
+# ==========================
+# Certificados
+# ==========================
+@login_required
+def certificados_lista(request):
+    perfil = getattr(request.user, "perfil", None)
+    es_socio = perfil and perfil.tipo == PerfilTipo.SOCIO
+    
+    if not (_es_admin_equipo(request.user) or es_socio):
+        messages.error(request, "No tienes permisos para ver certificados.")
+        return redirect("dashboard")
+    
+    
+    qs = Certificado.objects.select_related("jugador__perfil", "actividad").order_by("-fecha_hora_emision")
+    return render(request, "certificados/lista.html", {"certificados": qs})
+
+@login_required
+def certificado_detalle(request, certificado_id):
+    perfil = getattr(request.user, "perfil", None)
+    es_socio = perfil and perfil.tipo == PerfilTipo.SOCIO
+    
+    if not (_es_admin_equipo(request.user) or es_socio):
+        messages.error(request, "No tienes permisos para ver certificados.")
+        return redirect("dashboard")
+    
+    certificado = get_object_or_404(
+        Certificado.objects,
+        pk=certificado_id
+    )
+    
+    return render(request, "certificados/detalle.html", {"certificado": certificado})
+
+@login_required
+def certificado_generar(request):
+    if not _es_admin_equipo(request.user):
+        messages.error(request, "No tienes permisos para generar certificados.")
+        return redirect("certificados_lista")
+    
+    if request.method == "POST":
+        form = CertificadoGenerarForm(request.POST)
+        if form.is_valid():
+            actividad = form.cleaned_data["actividad"]
+            jugadores = form.cleaned_data["jugadores"]
+            prefijo = form.cleaned_data.get("prefijo_codigo") or ""
+            created = []
+
+            hoy = timezone.localdate()
+            hoy_formateado = fecha_es(hoy)
+
+            # URLs absolutas para imágenes
+            logo_url = request.build_absolute_uri(static("img/logo.png"))
+            firma_url = request.build_absolute_uri(static("img/firma.png"))
+
+            for jugador in jugadores:
+                perfil = jugador.perfil
+
+                contexto = {
+                    "jugador_nombre": perfil.nombre_completo,
+                    "colegio": jugador.colegio,
+                    "curso": jugador.curso,
+                    "actividad_titulo": actividad.titulo,
+                    "actividad_tipo": actividad.get_tipo_display(),
+                    "actividad_fecha_inicio": actividad.fecha_inicio,
+                    "actividad_fecha_fin": actividad.fecha_fin,
+                    "actividad_lugar": actividad.lugar or "",
+                    "hoy_formateado": hoy_formateado,
+
+                    # 🔥 Nuevos campos correctos
+                    "logo_url": logo_url,
+                    "firma_url": firma_url,
+                }
+
+                pdf_bytes = render_to_pdf("certificados/plantilla_certificado.html", contexto)
+
+                if not pdf_bytes:
+                    messages.error(request, f"Error al generar PDF para {perfil.nombre_completo}")
+                    continue
+
+                timestamp = int(timezone.now().timestamp())
+                codigo = f"{prefijo}{jugador.id}-{actividad.id}-{timestamp}"
+
+                nombre_archivo = f"certificado_{codigo}.pdf"
+
+                certificado = Certificado.objects.create(
+                    codigo=codigo,
+                    jugador=jugador,
+                    actividad=actividad,
+                    titulo_actividad=actividad.titulo,
+                    fecha_actividad_inicio=actividad.fecha_inicio,
+                    fecha_actividad_fin=actividad.fecha_fin,
+                    lugar=actividad.lugar or "",
+                    fecha_hora_emision=timezone.now(),
+                )
+
+                certificado.archivo.save(nombre_archivo, ContentFile(pdf_bytes))
+                created.append(certificado)
+
+            return redirect("certificados_lista")
+
+    else:
+        form = CertificadoGenerarForm()
+
+    return render(request, "certificados/form_generar.html", {"form": form})
+
+
+@login_required
+def certificado_pdf(request, certificado_id):
+    """Devuelve el PDF del certificado (para incrustar o descargar)."""
+    perfil = getattr(request.user, "perfil", None)
+    es_socio = perfil and perfil.tipo == PerfilTipo.SOCIO
+
+    if not (_es_admin_equipo(request.user) or es_socio):
+        messages.error(request, "No tienes permisos para ver certificados.")
+        return redirect("dashboard")
+
+    certificado = get_object_or_404(Certificado, pk=certificado_id)
+
+    # Si viene ?download=1 → forzar descarga
+    as_attachment = request.GET.get("download") == "1"
+
+    return FileResponse(
+        certificado.archivo.open("rb"),
+        content_type="application/pdf",
+        as_attachment=as_attachment,
+        filename=f"{certificado.codigo}.pdf",
+    )

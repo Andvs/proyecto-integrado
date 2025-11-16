@@ -6,15 +6,15 @@
 {% block main %}
 <div class="container-fluid">
 
- <!-- Barra superior: búsqueda + agregar -->
+<!-- Barra superior: búsqueda + agregar -->
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
 
   <!-- Búsqueda -->
   <form method="get" class="flex-grow-1" style="max-width: 650px;">
     <div class="input-group">
       <input type="text" name="q" class="form-control"
-             placeholder="Buscar por usuario, nombre, RUN o tipo…"
-             value="{{ q|default:'' }}">
+            placeholder="Buscar por usuario, nombre, RUN o tipo…"
+            value="{{ q|default:'' }}">
       {% if q %}
         <a href="{% url 'usuarios_lista' %}" class="btn btn-outline-secondary">
           <i class="bi bi-x-lg"></i>
